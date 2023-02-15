@@ -144,4 +144,4 @@ if __name__ == '__main__':
     ]
 
     cloud_pods, cloud_nodes, cloud_jobs, node_logs, job_logs = transform_data(pods, jobs, logs)
-    app.run(host="0.0.0.0", port=8080, debug=True)
+    app.run(host="0.0.0.0", port=3000, debug=True)
