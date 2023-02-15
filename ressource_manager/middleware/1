@@ -1,0 +1,52 @@
+from flask import Flask, render_template, request
+import pycurl
+import sys
+import os
+import requests
+
+cURL = pycurl.Curl()
+
+app = Flask(__name__)
+
+URL = 'https://winter2023-comp598-group07-03.cs.mcgil.ca'
+DEFAULT_POD = 0
+
+@app.route('/cloudproxy')
+def cloud_init():
+    return requests.get(URL + '/cloudproxy')
+
+@app.route('/cloudproxy/pods/<pod_name>')
+def cloud_pod_register(pod_name):
+    return requests.get('/cloudproxy/pods/' + pod_name)
+
+@app.route('/cloudproxy/pods/<pod_name>')
+def cloud_pod_rm(pod_name):
+    return requests.get('/cloudproxy/pods/' + pod_name)
+
+# route to register new node with name provided
+@app.route('/cloudproxy/nodes/<node_name>/<pod_id>')
+@app.route('/cloudproxy/nodes/<node_name>')
+def cloud_register(node_name, pod_id=DEFAULT_POD):
+    if int(pod_id) != DEFAULT_POD:
+        return request.get('/cloudproxy/nodes/' + node_name)
+    else:
+        return request.get('/cloudproxy/nodes/' + node_name + '/' + pod_id)
+
+# route to remove nodes
+@app.route('/cloudproxy/nodes/<node_name>')
+def cloud_rm(node_name):
+    return request.get('/cloudproxy/nodes/' + node_name)
+
+# route to launch a job
+@app.route('/cloudproxy/<path_to_job>')
+def cloud_launch(path_to_job):
+    return request.get('/cloudproxy/' + path_to_job)
+
+# route to abort a job
+@app.route('/cloudproxy/<path_to_job>')
+def cloud_abort(path_to_job):
+    return request.get('/cloudproxy/' + path_to_job)
+
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000)

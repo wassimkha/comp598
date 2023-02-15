@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Cloud Nodes</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+      table {
+        border-collapse: collapse;
+        width: 100%;
+      }
+      th, td {
+        border: 1px solid #dddddd;
+        text-align: left;
+        padding: 8px;
+      }
+      th {
+        background-color: #dddddd;
+      }
+      a {
+        color: blue;
+        text-decoration: none;
+      }
+    </style>
+  </head>
+  <body>
+    <h3 style="text-align: center;">Cloud Nodes</h3>
+    <table>
+      <tr>
+        <th>ID</th>
+        <th>Name</th>
+        <th>Pod ID</th>
+        <th>Status</th>
+        <th>Logs</th>
+        <th>Jobs</th>
+      </tr>
+      {% for node in nodes %}
+      <tr>
+        <td>{{ node.id }}</td>
+        <td>{{ node.name }}</td>
+        <td>{{ pod_id }}</td>
+        <td>{{ node.status }}</td>
+        <td><a href="/cloud/log/node/{{ node.id }}">logs</a></td>
+        <td><a href="/cloud/job/ls/{{ node.id }}">jobs</a></td>
+      </tr>
+      {% endfor %}
+    </table>
+  </body>
+</html>

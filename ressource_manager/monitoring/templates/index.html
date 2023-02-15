@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Cloud Management System</title>
+    <meta http-equiv="refresh" content="1" />
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 0;
+        background-color: #F2F2F2;
+      }
+
+      table {
+        border-collapse: collapse;
+        width: 100%;
+      }
+      th, td {
+        border: 1px solid #dddddd;
+        text-align: left;
+        padding: 8px;
+      }
+      th {
+        background-color: #dddddd;
+      }
+      a {
+        color: blue;
+        text-decoration: none;
+      }
+      h3 {
+        text-align: center;
+        padding: 20px;
+        background-color: #dddddd;
+        color: blue;
+      }
+      h2 {
+        text-align: center;
+        padding: 20px;
+        background-color: #dddddd;
+        color: rgb(173, 170, 173);
+      }
+      h5 {
+        text-align: center;
+        padding: 20px;
+        background-color: #dddddd;
+        color: rgb(173, 170, 173);
+      }
+    </style>
+  </head>
+  <body>
+    <h2>Cloud Management System</h2>
+    <h3>Cloud Pods</h3>
+    <h5><a href="/cloud/job/ls">Access all jobs</a></h5>
+    <table>
+      <tr>
+        <th>ID</th>
+        <th>Name</th>
+        <th>Number of Nodes</th>
+        <th>See The Nodes</th>
+      </tr>
+      {% for pod in cloud_pods %}
+      <tr>
+        <td>{{ pod.id }}</td>
+        <td>{{ pod.name }}</td>
+        <td>{{ pod.nodes }}</td>
+        <td><a href="/cloud/node/ls/{{ pod.id }}">nodes</a></td>
+      </tr>
+      {% endfor %}
+    </table>
+    
+</html>

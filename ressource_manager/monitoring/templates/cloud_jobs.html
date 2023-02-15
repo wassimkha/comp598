@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Cloud Jobs</title>
+    <style>
+      /* Add some basic styles to make the page look better */
+      body {
+        font-family: Arial, sans-serif;
+        padding: 20px;
+      }
+      h3 {
+        text-align: center;
+        margin-bottom: 30px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+      }
+      th,
+      td {
+        border: 1px solid #ddd;
+        padding: 8px;
+        text-align: left;
+      }
+      th {
+        background-color: #ddd;
+      }
+    </style>
+  </head>
+  <body>
+    <h3>Cloud Jobs</h3>
+    <table>
+      <tr>
+        <th>ID</th>
+        <th>Name</th>
+        <th>Node id</th>
+        <th>Status</th>
+        <th>Logs</th>
+      </tr>
+      {% for job in jobs %}
+      <tr>
+        <td>{{ job.id }}</td>
+        <td>{{ job.name }}</td>
+        <td>{{ job.node_id }}</td>
+        <td>{{ job.status }}</td>
+        <td><a href="/cloud/job/log/{{ job.id }}">logs</a></td>
+      </tr>
+      {% endfor %}
+    </table>
+  </body>
+</html>
