@@ -59,10 +59,9 @@ def cloud_launch():
     return Response(response.content, content_type=response.headers['content-type'])
 
 # route to abort a job
-@app.route('/cloudproxy/jobs', methods=["DELETE"])
-def cloud_abort():
-    file = request.files['file']
-    response = requests.delete('/cloudproxy/jobs', files=file)
+@app.route('/cloudproxy/jobs/<job_id>', methods=["DELETE"])
+def cloud_abort(job_id):
+    response = requests.delete(URL + f'/cloudproxy/jobs/{job_id}')
     return Response(response.content, content_type=response.headers['content-type'])
 
 # route to list all pods

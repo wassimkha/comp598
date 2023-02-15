@@ -86,7 +86,6 @@ def list_nodes(pod_id=None):
 @app.route("/cloud/job/ls/<node_id>", methods=["GET"])
 def list_jobs(node_id=None):
     jobs = []
-    
     if node_id:
         jobs_json = requests.get(URL + f'/cloudproxy/jobs/{node_id}').json()
         jobs = [job for job in jobs_json['result'] if job['node_id'] == node_id]
@@ -96,20 +95,20 @@ def list_jobs(node_id=None):
 
     return render_template("cloud_jobs.html", jobs=jobs)
 
-@app.route("/cloud/job/log/<int:job_id>", methods=["GET"])
+@app.route("/cloud/job/log/<job_id>", methods=["GET"])
 def get_job_log(job_id):
-    job = next((job for job in cloud_jobs if job["id"] == job_id), None)
-    if job:
-        job_log = job_logs.get(job_id, None)
+    job_log = requests.get(URL + f'/cloudproxy/jobs/{job_id}/log').json()
+    if job_log:
         return render_template("logs.html", logs=job_log)
     else:
         return "Job not found", 404
 
-@app.route("/cloud/log/node/<int:node_id>", methods=["GET"])
+@app.route("/cloud/log/node/<node_id>", methods=["GET"])
 def get_node_log(node_id):
-    node_log = node_logs.get(node_id, None)
+    node_log = requests.get(URL + f'/cloudproxy/nodes/{node_id}/logs').json()
+    print("got log as", node_log, file=sys.stdout)
     if node_log:
-        return render_template("logs.html", logs=node_log)
+        return render_template("node_logs.html", logs=node_log)
     else:
         return "Node not found", 404
 
