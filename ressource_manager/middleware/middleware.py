@@ -10,7 +10,7 @@ app = Flask(__name__)
 
 ##TODO: is the URL = 'http://10.140.17.121:6000'?
 
-URL = 'http://10.140.17.119:6000'
+URL = 'http://10.140.17.121:6000'
 DEFAULT_POD = 0
 
 @app.route('/cloudproxy', methods=["POST"]) #TODO: can we use /cloud for client: @app.route('/cloud', methods=['POST']), then /cloudproxy when RM is calling the proxy 
@@ -78,7 +78,7 @@ def cloud_node_ls(pod_id=None):
         response = requests.get(URL +'/cloudproxy/nodes/' + pod_id)
         return Response(response.content, content_type=response.headers['content-type'])
     else:
-        response = requests.get(URL +'/cloudproxy/nodes/')
+        response = requests.get(URL +'/cloudproxy/nodes')
         return Response(response.content, content_type=response.headers['content-type'])
 
 # route to list all jobs in the provided node
@@ -89,7 +89,7 @@ def cloud_job_ls(node_id=None):
         response = requests.get(URL +'/cloudproxy/jobs/' + node_id)
         return Response(response.content, content_type=response.headers['content-type'])
     else:
-        response = requests.get(URL +'/cloudproxy/jobs/')
+        response = requests.get(URL +'/cloudproxy/jobs')
         return Response(response.content, content_type=response.headers['content-type'])
 
 # route to get the log from a job
