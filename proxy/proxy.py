@@ -279,7 +279,7 @@ def cloud_init():
         # instantiate the default pod (a pod is a collection of nodes)
         pods.append({'id': DEFAULT_POD, 'name': 'default', 'nodes': []})
         # instantiate 50 default nodes in the default pod
-        for i in range(0, 1):
+        for i in range(0, 50):
              node_init('node_' + str(i))
         # a cluster is a set of pods => this is a cluster so nothing else to do here
         #save_env_var()
@@ -394,7 +394,7 @@ def cloud_rm(node_name):
                 if node['status'] == 'idle':
                     print('Successfully removed node: ' + node_name)
                     container = client.containers.get(node_name)
-                    container.remove()
+                    container.remove(force=True)
                     pod['nodes'].remove(node)
                     #save_env_var()
                     return jsonify({'result': 'node deleted', 'node_name': node_name})
