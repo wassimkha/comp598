@@ -8,9 +8,11 @@ def cloud_init (url):
     try: 
         response = requests.post(url + '/cloudproxy')
         response_json = response.json()
-        print(response_json)
+        print(response_json["result"])
     except requests.exceptions.RequestException as e:
         print(f"An error occurred: {e}")
+    except ValueError as e:
+        print(f"An error occurred while parsing the response: {e}")
 
 #2. cloud pod register POD_NAME - registeres a new pod with POD_NAME
 def cloud_pod_register(url, command):
@@ -22,7 +24,6 @@ def cloud_pod_register(url, command):
             #for A1: consider a single pod
             print("Command unavailable due to insufficient resources.")
 
-            print("here")
             #Proxy return jsonify({'result': "unknown", 'pod_name': "unknown"})
             response_json = response.json()
             result = response_json["result"]
@@ -88,6 +89,7 @@ def cloud_register(url, command):
 
         #proxy:  return jsonify({'result': result, 'node_status': node_status, 'node_name': node_name})
         if response is not None:
+           # print(response.content)
             response_json = response.json()
             result = response_json["result"]
             node_status = response_json["node_status"]
@@ -113,12 +115,12 @@ def cloud_rm(url, command):
         command_list = command.split()
         if len(command_list) == 3:
             response = requests.delete(url + '/cloudproxy/nodes/' + command_list[2])
-
+        #    print(response.content)
             #proxy return ex. jsonify({'result': 'node does not exist', 'node_name': node_name})
             response_json = response.json()
             result = response_json["result"]
             node_name = response_json["node_name"]
-            print("For node named: ", result, ", removed status is ", node_name)
+            print("For node named:", node_name, ", removed status is", result)
 
         elif len(command_list) == 2: #NODE_NAME not provided
             print("Please provide a node name.")
@@ -157,7 +159,6 @@ def cloud_launch(url, command):
             
         elif len(command_list) == 2: #path to job not specified
             print("Please provide the path to the job.")
-
         else: #too many arguments
             print("Invalid number of arguments.")
 
@@ -224,10 +225,21 @@ def cloud_node_ls(url, command):
             print("Invalid number of arguments.")
 
         if response != None:
+           # print(response.content)
+            
+           # print(response.status_code)
             nodes = response.json()
-            print("Name\t\tID\tStatus\tPod ID")
-            for node in nodes:
-                print(f"{node['name']}\t\t{node['id']}\t{node['status']}\t{node['pod_id']}")
+        
+            if not nodes['result'][0]:
+                print(nodes)
+                print("No nodes to be displayed")
+            elif "result" in nodes and nodes["result"] == "does not exist":
+                print(f"Pod with id {pod_id} does not exist.")
+            else:
+               # print(nodes['result'])
+                print("Name\t\t\tID\t\t\t\t\t\t\t\t\tStatus")
+                for node in nodes['result'][0]:
+                    print(f"{node['name']}\t\t{node['id']}\t{node['status']}")
     except requests.exceptions.RequestException as e:
         print(f"An error occurred while sending the request: {e}")
     except ValueError as e:
@@ -248,10 +260,23 @@ def cloud_job_ls(url, command):
             print("Invalid number of arguments.")
 
         if response != None:
-            jobs = response.json()
-            print("Name\t\tID\tNode ID\tStatus")
-            for job in jobs:
-                print(f"{job['name']}\t\t{job['id']}\t{job['node_id']}\t{job['status']}")
+            result = response.json()
+            if 'result' in result and result['result'] == 'does not exist':
+                print(f"Node with id {result['node_id']} does not exist.")
+            elif 'result' in result:
+                jobs = result['result']
+                if jobs:
+                    print("Name\t\tID\t\t\t\t\tNode ID\t\t\t\t\tStatus")
+                    for job in jobs:
+                        print(f"{job['name']}\t\t{job['id']}\t{job['node_id']}\t{job['status']}")
+                else:
+                    print("No jobs found.")
+            # print(response.content)
+           # jobs=response.json()
+           # print(jobs['result'])
+           # print("Name\t\tID\tNode ID\tStatus")
+           # for job in jobs:
+            #    print(f"{job['name']}\t\t{job['id']}\t{job['node_id']}\t{job['status']}")
     
     except requests.exceptions.RequestException as e:
         print(f"An error occurred while sending the request: {e}")
@@ -273,7 +298,10 @@ def cloud_job_log(url, command):
                 print("Job not found, request failed.")
             else:
                 log = response.json()
-                print(log["message"])
+                if len(log)==2:
+                    print(log['result'])
+                else:    
+                    print(log)
 
         elif len(command_list) == 3:
             print("Please provide the job ID.")
@@ -293,13 +321,15 @@ def cloud_log_node(url, command):
         command_list = command.split()
         if len(command_list) == 4:
             node_id = command_list[3]
-            response = requests.get(f'{URL}/cloudproxy/nodes/{node_id}/logs')
+            response = requests.get(f'{url}/cloudproxy/nodes/{node_id}/logs')
             #node ID not found 404
             if response.status_code == 404:
                 print("Node not found, request failed.")
             else:
-                log = response.json()
-                print(log["message"])
+               # print(response)
+                print(response.content)
+                #log = response.json()
+                #print(log)
 
         elif len(command_list) == 3:
             print("Please provide the node ID.")
@@ -316,7 +346,7 @@ def cloud_log_node(url, command):
 def main():
     #RM url given as argument
     #rm_url = sys.argv[1]
-    rm_url = 'http://10.140.17.119:5000'
+    rm_url = 'http://10.140.17.120:5000'
     while(1): #loop while taking input from client
         command = input('$ ')
         if command == 'cloud init':
