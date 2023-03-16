@@ -18,6 +18,8 @@ proxies running on 6000
 
 load balancer listening on requests sent to 10.140.17.255 (vm2): 5000 and depending on ending of curl (ex. /heavy), request forward to respective node using specified balance options
 
-nodes in all three pods must have: node_id, node_name, status (new/online), port_number
+nodes in all three pods must have: node_id, node_name, status (new/online), port_number  
+new - added to proxy, not running container  
+online - added to load balancer, when called will run the job (refer to tutorialA2-proxy.py)
 
-**the proxy code from the tutorial is in the repo - refer the implementation in RM/middleware/middleware.py on interaction with load balancer
+**the proxy code from the tutorial is in the repo - and refer to the implementation in RM/middleware/middleware.py on interactions of nodes with load balancer
