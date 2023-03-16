@@ -19,3 +19,5 @@ proxies running on 6000
 load balancer listening on requests sent to 10.140.17.255 (vm2): 5000 and depending on ending of curl (ex. /heavy), request forward to respective node using specified balance options
 
 nodes in all three pods must have: node_id, node_name, status (new/online), port_number
+
+**the proxy code from the tutorial is in the repo 
