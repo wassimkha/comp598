@@ -17,6 +17,8 @@ pod_id = 2
 proxies running on 6000
 
 load balancer listening on requests sent to 10.140.17.255 (vm2): 5000 and depending on ending of curl (ex. /heavy), request forward to respective node using specified balance options
+
+
 (if end user calls 'curl 10.140.17.255:5000/heavy', the request is forwarded to one of the nodes added by the cloud user through cloud_toolset or thorugh curl PROXYIP/register/nodeName/portNumber)
 
 nodes in all three pods must have: node_id, node_name, status (new/online), port_number  
