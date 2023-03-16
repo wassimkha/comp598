@@ -28,7 +28,8 @@ nodes in all three pods must have: node_id, node_name, status (new/online), port
 
 **only commands listed on the handout need to be implemented and tested on
 
-*commands for haproxy*
+**commands for haproxy**
+
 to see haproxy version:  
 `haproxy -v`
 
