@@ -70,6 +70,7 @@ def register(name, port):
                                 'status': 'NEW'})
                                 #not ready to be added to LB - initialize to false for running
 
+#
 #helper method - create docker container
 #container_name = node_name, port_number = used when container is created
 def launch_node(container_name, port_number){

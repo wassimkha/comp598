@@ -203,7 +203,7 @@ def cloud_launch():
                             'name': name,
                             'status': status})
 
-    return jsonify({'response': 'failure'}) 
+    return jsonify({'response': 'failure'}) #TODO: add reason??
 
 #function to resume a specified pod_id (put all nodes in LB on pause)
 @app.route('/cloudproxy/pods/resume/<pod_id>', methods=["PUT"])

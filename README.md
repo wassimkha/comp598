@@ -22,4 +22,6 @@ nodes in all three pods must have: node_id, node_name, status (new/online), port
 new - added to proxy, not running container  
 online - added to load balancer, when called will run the job (refer to tutorialA2-proxy.py)
 
-**the proxy code from the tutorial is in the repo - and refer to the implementation in RM/middleware/middleware.py on interactions of nodes with load balancer
+**the proxy code from the tutorial is in the repo - and refer to the implementation in RM/middleware/middleware.py on interactions of nodes with load balancer  
+
+**only commands listed on the handout need to be implemented and tested on
