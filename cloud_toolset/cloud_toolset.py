@@ -1,6 +1,7 @@
 import sys
 import os
 import requests
+import subprocess
 
 #-----------CLI Post Commands--------------------------------------------------------
 #1. cloud init - initialize main resource cluster
@@ -199,6 +200,19 @@ def cloud_pause(url, command):
         
     except ValueError as e:
         print(f"An error occurred while parsing the response: {e}")
+
+def cloud_watch():
+    #cmd = "watch 'echo \"show stat\" | sudo socat stdio /var/run/haproxy.sock | cut -d \",\" -f 1-2,5-10,34-36 | column -s, -t'"
+    cmd = "echo \"command\""
+    process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    while True:
+        output = process.stdout.readline().decode()
+        if output == '' and process.poll() is not None:
+            break
+        if output:
+            print(output, end='', flush=True)
+
+
 
 # #7. cloud abort JOB_ID
 # #aborts specified job
@@ -399,6 +413,9 @@ def main():
             cloud_resume(rm_url, command)
         elif command.startswith('cloud pause'):
             cloud_pause(rm_url, command)
+        elif command.startswith('cloud watch'):
+            cloud_watch()
+
         # elif command.startswith ('cloud abort'):
         #     cloud_abort(rm_url, command)
         #  #monitoring commands   
