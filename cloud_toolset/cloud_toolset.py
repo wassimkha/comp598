@@ -14,62 +14,67 @@ def cloud_init (url):
     except ValueError as e:
         print(f"An error occurred while parsing the response: {e}")
 
+#TODO: print or return
 #2. cloud pod register POD_NAME - registeres a new pod with POD_NAME
 def cloud_pod_register(url, command):
-    try:
-        command_list = command.split()
-        if len(command_list) == 4:
-            response = requests.post(url + '/cloudproxy/pods/' + command_list[3])
+    print("The current cloud system cannot register new pods")
+    # try:
+    #     command_list = command.split()
+    #     if len(command_list) == 4:
+    #         response = requests.post(url + '/cloudproxy/pods/' + command_list[3])
 
-            #for A1: consider a single pod
-            print("Command unavailable due to insufficient resources.")
+    #         #for A1: consider a single pod
+    #         print("Command unavailable due to insufficient resources.")
 
-            #Proxy return jsonify({'result': "unknown", 'pod_name': "unknown"})
-            response_json = response.json()
-            result = response_json["result"]
-            pod_name = response_json["pod_name"]
-            print("Result: ", result)
-            print("Pod Name: ", pod_name)
+    #         #Proxy return jsonify({'result': "unknown", 'pod_name': "unknown"})
+    #         response_json = response.json()
+    #         result = response_json["result"]
+    #         pod_name = response_json["pod_name"]
+    #         print("Result: ", result)
+    #         print("Pod Name: ", pod_name)
 
-        elif len(command_list) == 3: #POD_NAME not provided
-            print("Please provide a pod name.")
+    #     elif len(command_list) == 3: #POD_NAME not provided
+    #         print("Please provide a pod name.")
 
-        else: #too many arguments
-            print("Invalid number of arguments.")
+    #     else: #too many arguments
+    #         print("Invalid number of arguments.")
 
-    except requests.exceptions.RequestException as e:
-        print(f"An error occurred while sending the request: {e}")
+    # except requests.exceptions.RequestException as e:
+    #     print(f"An error occurred while sending the request: {e}")
         
-    except ValueError as e:
-        print(f"An error occurred while parsing the response: {e}")
+    # except ValueError as e:
+    #     print(f"An error occurred while parsing the response: {e}")
 
+
+#TODO: print or return
 #3. cloud pod rm POD_NAME - removes specified pod
 def cloud_pod_rm(url, command):
-    try:
-        command_list = command.split()
-        if len(command_list) == 4:
-            response = requests.delete(url + '/cloudproxy/pods/' + command_list[3])
+    print("The current cloud system does not allow users to remove pods")
+    # try:
+    #     command_list = command.split()
+    #     if len(command_list) == 4:
+    #         response = requests.delete(url + '/cloudproxy/pods/' + command_list[3])
 
-            #for A1: only consider single pod
-            print("Can not delete the default pod.")
+    #         #for A1: only consider single pod
+    #         print("Can not delete the default pod.")
 
-            #Proxy return jsonify({'result': "unknown", 'pod_name': "unknown"})
-            response_json = response.json()
-            result = response_json["result"]
-            pod_name = response_json["pod_name"]
-            print("Result: ", result)
-            print("Pod Name: ", pod_name)
+    #         #Proxy return jsonify({'result': "unknown", 'pod_name': "unknown"})
+    #         response_json = response.json()
+    #         result = response_json["result"]
+    #         pod_name = response_json["pod_name"]
+    #         print("Result: ", result)
+    #         print("Pod Name: ", pod_name)
 
-        elif len(command_list) == 3: #POD_NAME not provided
-            print("Please provide a pod name.")
-        else: #too many arguments
-            print("Invalid number of arguments.")
+    #     elif len(command_list) == 3: #POD_NAME not provided
+    #         print("Please provide a pod name.")
+    #     else: #too many arguments
+    #         print("Invalid number of arguments.")
 
-    except requests.exceptions.RequestException as e:
-        print(f"An error occurred while sending the request: {e}")
+    # except requests.exceptions.RequestException as e:
+    #     print(f"An error occurred while sending the request: {e}")
         
-    except ValueError as e:
-        print(f"An error occurred while parsing the response: {e}")
+    # except ValueError as e:
+    #     print(f"An error occurred while parsing the response: {e}")
 
 
 #4. cloud register NODE_NAME [POD_ID]   
