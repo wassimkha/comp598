@@ -20,4 +20,4 @@ load balancer listening on requests sent to 10.140.17.255 (vm2): 5000 and depend
 
 nodes in all three pods must have: node_id, node_name, status (new/online), port_number
 
-**the proxy code from the tutorial is in the repo 
+**the proxy code from the tutorial is in the repo - refer the implementation in RM/middleware/middleware.py on interaction with load balancer
