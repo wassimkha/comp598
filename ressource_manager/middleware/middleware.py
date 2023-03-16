@@ -11,17 +11,18 @@ cURL = pycurl.Curl()
 app = Flask(__name__)
 
 #----------global var------------
+#pod_id = 0 
 ip_proxy_light = 'http://10.140.17.119:6000' 
 ip_proxy_light_no_port = '10.140.17.119'
-#pod_id = 0 
 
+#pod_id = 1
 ip_proxy_medium = 'http://10.140.17.255:6000'
 ip_proxy_medium_no_port = '10.140.17.255'
-#pod_id = 1
 
+#pod_id = 2
 ip_proxy_heavy = 'http://10.140.17.121:6000'
 ip_proxy_heavy_no_port = '10.140.17.121'
-#pod_id = 2
+
 
 URL = '' 
 ip_no_port = ''
