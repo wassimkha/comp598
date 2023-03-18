@@ -1,98 +1,72 @@
-import ast
+# API
+from flask import Flask, jsonify, request
+# logging
 from datetime import datetime
-import shutil
+import io
 import tarfile
+# job scheduling / multithreading
 import threading
 import queue
-import atexit
 import time
-from apscheduler.schedulers.background import BackgroundScheduler
-import io
-from io import BytesIO
-from flask import Flask, jsonify, request
+# docker
 import docker  # can't use swarm or networks !
 from docker import errors
-import os
-import asyncio
-import multiprocessing as mp
 from docker.types import LogConfig
-import tarfile,os
-import sys
+# interactions with the VM
+import os
 
+# set up the network
 client = docker.from_env()
-try :
+try:
     network = client.networks.get('container_network')
 except docker.errors.NotFound:
     network = client.networks.create('container_network', driver='bridge')
-
+# set up the app
 app = Flask(__name__)
-
-# ---------- TODO --------------
-# team
-# 1. endpoints!
-# 2. response when it fails (e.g. pod doesn't exist)
-
-# 4. not sure about launch
-# me
-# 1. logs at creation (returned to STDOUT and STDERR may be read only if either json-file or journald logging driver used. Thus, if you are using none of these drivers, a None object is returned instead.)
-# or auto generated? dunno
 
 # constants
 DEFAULT_POD = "0"  # for A1 we consider a single Resource Pod – no Resource Cluster
 WRK_DIR = '/home'
 LOG_DIR = f'{WRK_DIR}/logs'
 JOB_DIR = f'{WRK_DIR}/jobs'
-# variables - the cluster is a set of pods TODO set these as environment variables on the VM
+# structure - the cluster is a set of pods TODO set these as environment variables on the VM
 pods = []  # collection of nodes (docker containers)
-jobs = []   # all jobs - ssh files
-logs = []
+jobs = []  # all jobs - ssh files
+logs = []  # self-explanatory
+wait_queue = queue.Queue()  # jobs that are waiting to be assigned
+'''
+pods := [ {'id', 'name', 'nodes': [ {'id', 'name', 'status'}, ... ] }, ... ] 
+jobs := [ {'id', 'name', 'content', 'status', 'node_id'}, ... ]
+wait_queue := [ job_id, ... ]
+logs := job ID, date & time, content 
+'''
 
-# processes = [] # processes that are being executed
-# main_process = mp.current_process()
-
-'''
-pod := [  ]
-node = { 'id', 'name',  'status' }
-jobs = [ { 'id', 'name', 'status', 'node_id' }, ... ]
-wait_queue = [ job_id, ... ]
-'''
-'''
-pod := name, ID, number of nodes
-node := name, ID, status
-job := name, ID, node ID, and status
-logs (handled by docker)
-'''
 
 ### helpers ##########################################################################################################
 
-def node_init(node_name, pod_id=DEFAULT_POD, cpu=1024, memory="6m", storage="dm.basesize=20G"):  # TODO more appropriate default parameter values
+def node_init(node_name, pod_id=DEFAULT_POD, cpu=1024, memory="6m", storage="dm.basesize=20G"):
     """ Creates a new node
 
-        :returns: not sure yet
+        :returns: the node that was initialized
         """
     # doc: https://docker-py.readthedocs.io/en/stable/containers.html#docker.models.containers.Container.status
 
-    log_config = LogConfig(type='local')
-
-    # initially, the node has the “idle” status
-    # The newly created node is assigned to a job if one is waiting in the queue.
-    # In this case, both the status of the job and node must be updated accordingly
-    status = 'idle'  # if wait_queue.empty() else 'running'
-
     # linux Alpine image is running the containers, each has a specific CPU, memory, and storage limit factor
-    client.containers.run('alpine', log_config=log_config, stop_signal='SIGINT', detach=True, name=node_name,
-                          stdin_open = True, tty = True, cap_add='SYS_ADMIN') #, cpu_shares=cpu, mem_limit=memory, storage_opt=storage)
+    client.containers.run('alpine', log_config=LogConfig(type='local'), stop_signal='SIGINT',
+                          detach=True, name=node_name, stdin_open=True, tty=True,
+                          cap_add='SYS_ADMIN')  # , cpu_shares=cpu, mem_limit=memory, # storage_opt=storage)
     container = client.containers.get(node_name)
     container.exec_run(f"mkdir -p {LOG_DIR}")
     container.exec_run(f"mkdir -p {JOB_DIR}")
     container.pause()
 
+    # add the new node to the pod; initially, it has the “idle” status
     node_id = container.__getattribute__('id')
-    get_pod_by_id(pod_id)['nodes'].append({'id': node_id, 'name': node_name, 'status': status})
+    get_pod_by_id(pod_id)['nodes'].append({'id': node_id, 'name': node_name, 'status': 'idle'})
 
-    # TODO if logs aren't auto generated, save one here
-
-    if not wait_queue.empty() :
+    # the newly created node is assigned to a job if one is waiting in the queue
+    # the wait gives enough time so that the status is updated before returning
+    if not wait_queue.empty():
         time.sleep(0.2)
 
     # return the node
@@ -100,7 +74,7 @@ def node_init(node_name, pod_id=DEFAULT_POD, cpu=1024, memory="6m", storage="dm.
 
 
 def get_node_by_name(name, pod_id=None):
-    """ Get the node with the specified name
+    """ Gets the node with the specified name
 
         :returns: node with the given name or None if there are not any
         """
@@ -108,8 +82,9 @@ def get_node_by_name(name, pod_id=None):
     nodes = get_pod_by_id(pod_id)['nodes']
     return next(filter(lambda node: node['name'] == name, nodes), None)
 
-def get_node_by_id(node_id, pod_id=None): # TODO add impl if none
-    """ Get the node with the specified name
+
+def get_node_by_id(node_id, pod_id=None):  # TODO add impl if none
+    """ Gets the node with the specified name
 
         :returns: node with the given name or None if there are not any
         """
@@ -117,22 +92,25 @@ def get_node_by_id(node_id, pod_id=None): # TODO add impl if none
     nodes = get_pod_by_id(pod_id)['nodes']
     return next(filter(lambda node: node['id'] == node_id, nodes), None)
 
+
 def get_pod_by_id(pod_id):
-    """ Get the pod with the specified ID
+    """ Gets the pod with the specified ID
 
         :returns: pod with the given ID or None if there are not any
         """
     return next(filter(lambda pod: pod['id'] == pod_id, pods), None)
 
+
 def get_pod_by_name(name):
-    """ Get the pod with the specified name
+    """ Gets the pod with the specified name
 
         :returns: pod with the given ID or None if there are not any
         """
     return next(filter(lambda pod: pod['name'] == name, pods), None)
 
+
 def get_free_node_in_pod(pod_id):
-    """ Get a free node in the specified pod
+    """ Gets a free node in the specified pod
 
         :returns: a free node or None if there are not any
         """
@@ -142,18 +120,19 @@ def get_free_node_in_pod(pod_id):
 
 
 def get_free_node():
-    """ Get a free node in any pod
+    """ Gets a free node in any pod
 
         :returns: a free node or None if there are not any
         """
     for pod in pods:
         node = get_free_node_in_pod(pod['id'])
-        if node :
+        if node:
             return node
     return None
 
+
 def get_job_by_name(name):
-    """ Get the node with the specified name
+    """ Gets the node with the specified name
 
         :returns: node with the given name or None if there are not any
         """
@@ -167,11 +146,11 @@ def get_job_by_id(id):
         """
     return next(filter(lambda job: job['id'] == id, jobs), None)
 
-### job management ####################################################################################################
 
-# execute the job on a new thread, and append its output to a log file in the node it is running on
-def exec_job(node, job):  #, process):
-    #load_env_var()
+### job execution and scheduling #####################################################################################
+
+def exec_job(node, job):  # , process):
+    """ Executes the job on a new thread, and append its output to a log file inside the node it's running on """
 
     # once the manager dispatches the job, the ID of the job is printed to stdout
     print(f"Job with name {job['name']} and id {job['id']} is being dispatched.")
@@ -210,15 +189,14 @@ def exec_job(node, job):  #, process):
     # assign the “completed” status to the job and the node becomes “idle” again
     job['status'] = 'completed'
     node['status'] = 'idle'
-    #save_env_var()
 
     # we are done
     print(f"Job with path {job['name']} and id {job['id']} was successfully completed.")
 
-wait_queue = queue.Queue()  # jobs that are waiting to be assigned
 
 # https://docs.python.org/3/library/queue.html
 def wait_queue_exec():
+    """ Dispatches jobs that are waiting to be assigned when a node becomes available (this runs in the background) """
     while True:
         node = get_free_node()
         if node and not wait_queue.empty():
@@ -231,47 +209,22 @@ def wait_queue_exec():
             thr.start()
             wait_queue.task_done()
 
-# def #save_env_var():
-#     global pods, jobs
-#     if str(pods) != os.getenv('PODS'):
-#         os.environ["PODS"] = str(pods)
-#     if str(jobs) != os.getenv('JOBS'):
-#         os.environ["JOBS"] = str(jobs)
-#
-# def #load_env_var(): # maybe get this from docker... :(
-#     global pods, jobs
-#     if not os.getenv('PODS'):
-#         os.environ['PODS'] = "[]"
-#         os.environ['JOBS'] = "[]"
-#     if str(pods) != os.getenv('PODS'):
-#         pods = ast.literal_eval(os.getenv('PODS'))
-#     if str(jobs) != os.getenv('JOBS'):
-#         jobs = ast.literal_eval(os.getenv('JOBS'))
 
-# Turn-on the worker thread.
-# scheduler = BackgroundScheduler()
-# scheduler.add_job(func=wait_queue_exec, trigger="interval", seconds=1)
+# turn-on the worker thread
 threading.Thread(target=wait_queue_exec, daemon=True).start()
-#scheduler.add_job(func=save_env_var, trigger="interval", seconds=1)
-#scheduler.start()
 
-# Shut down the scheduler when exiting the app
-#atexit.register(lambda: scheduler.shutdown())
-
-# everytime we queue a job
-# when wait returns, we schedule from wait queue
 
 ### A1 functions #####################################################################################################
 
 @app.route('/cloudproxy', methods=["POST"])
 def cloud_init():
     """ Initializes the main resource cluster. All cloud services are set up.
-        :return: if the cluster was successfully initialized
+
+        :return: true if the cluster was successfully initialized
     """
     # if it was requested to initialize a new cluster
     if request.method == 'POST':
         # if the cluster was never initialized
-        #load_env_var()
         # if the cluster was already initialized, we just return
         if len(pods) != 0:
             print('Resource cluster was already initialized.')
@@ -280,40 +233,35 @@ def cloud_init():
         pods.append({'id': DEFAULT_POD, 'name': 'default', 'nodes': []})
         # instantiate 50 default nodes in the default pod
         for i in range(0, 50):
-             node_init('node_' + str(i))
+            node_init('node_' + str(i))
         # a cluster is a set of pods => this is a cluster so nothing else to do here
-        #save_env_var()
         print('Successfully initialized default pod')
         return jsonify({'result': 'success'})
 
 
 @app.route('/cloudproxy/pods/<pod_name>', methods=["POST"])
 def cloud_pod_register(pod_name):
-    """Registers a new pod with the specified name to the
-    main resource cluster. Note: pod names must be unique.
+    """ Registers a new pod with the specified name to the main resource cluster. Note: pod names must be unique.
 
     :param: name of the pod to be created
     :returns: json containing registration result and pod name
     """
     # if it was requested to register a new pod
     if request.method == 'POST':
-        #load_env_var()
         # for A1 we consider a single Resource Pod – no Resource Cluster
         print('Command unavailable due to insufficient resources.')
-        #save_env_var()
         return jsonify({'result': 'unknown', 'pod_name': 'unknown'})
 
 
 @app.route('/cloudproxy/pods/<pod_name>', methods=["DELETE"])
 def cloud_pod_rm(pod_name):
-    """Removes the specified pod.
+    """ Removes the specified pod.
 
     :param: name of the pod to be deleted
     :returns: json containing registration result and pod name
     """
     # if it was requested to delete a pod
     if request.method == 'DELETE':
-        #load_env_var()
         pod = get_pod_by_name(pod_name)
         # verify that the pod exists
         if pod is None:
@@ -329,9 +277,8 @@ def cloud_pod_rm(pod_name):
             return jsonify({'result': 'pod contains nodes', 'pod_name': pod_name})
         # else ...
 
-        # for A1 pod_name is always the default pod if it exists,
-        # so nothing goes here for now
-        #save_env_var()
+        # for A1 pod_name is always the default pod if it exists, so nothing goes here for now
+
         return jsonify({'result': "unknown", 'pod_name': "unknown"})
 
 
@@ -339,7 +286,7 @@ def cloud_pod_rm(pod_name):
 @app.route('/cloudproxy/nodes/<node_name>', methods=["POST"])
 @app.route('/cloudproxy/nodes/<node_name>/<pod_id>', methods=["POST"])
 def cloud_register(node_name, pod_id=DEFAULT_POD):
-    """Creates a new node and registers it to the specified pod ID.
+    """ Creates a new node and registers it to the specified pod ID.
 
         :param node_name: name of the node to be created
         :param pod_id: id of the pod it will be created in
@@ -348,7 +295,6 @@ def cloud_register(node_name, pod_id=DEFAULT_POD):
 
     # if it was requested to register a new node
     if request.method == 'POST':
-        #load_env_var()
         print(f'Request to register new node: {node_name}')
         node_status = 'unknown'
         # if the pod with specified ID does not exist, the command fails
@@ -367,7 +313,7 @@ def cloud_register(node_name, pod_id=DEFAULT_POD):
                 print('Successfully added a new node: ' + str(node_name))
                 result = 'node added'
                 node_init(node_name, pod_id)
-                #save_env_var()
+
             # in both cases we return the node's status
             node_status = get_node_by_name(node_name, pod_id)['status']
         # return the result, the current status of the node and its name
@@ -385,7 +331,6 @@ def cloud_rm(node_name):
 
     # if it was requested to delete a node
     if request.method == 'DELETE':
-        #load_env_var()
         # the command fails if the name does not exist or if its status is not “idle”
         for pod in pods:
             node = get_node_by_name(node_name, pod['id'])
@@ -396,7 +341,7 @@ def cloud_rm(node_name):
                     container = client.containers.get(node_name)
                     container.remove(force=True)
                     pod['nodes'].remove(node)
-                    #save_env_var()
+
                     return jsonify({'result': 'node deleted', 'node_name': node_name})
                 else:
                     print(f"Node with name {node['name']} is not “idle”, with status {node['status']}")
@@ -409,14 +354,13 @@ def cloud_rm(node_name):
 # route to launch a job
 @app.route('/cloudproxy/jobs', methods=["POST"])
 def cloud_launch():
-    """Launches the specified job.
+    """ Launches the specified job.
 
         :param: path to the job to be launched
         :returns: json of the result along with the job id
         """
     # if it was requested to launch a job
     if request.method == 'POST':
-        #load_env_var()
         # input file
         file = request.files['file']
         file_name = file.filename
@@ -426,7 +370,8 @@ def cloud_launch():
         if file_name == '':
             return jsonify({'result': 'no file provided'})
         # current job
-        job = {'id': str(len(jobs)), 'name': file_name, 'content': io.StringIO(file_content).getvalue(), 'status': 'registered',
+        job = {'id': str(len(jobs)), 'name': file_name, 'content': io.StringIO(file_content).getvalue(),
+               'status': 'registered',
                'node_id': None}
         jobs.append(job)
         # assign the job to the first free node
@@ -436,15 +381,9 @@ def cloud_launch():
             job['node_id'] = node['id']
             node['status'] = 'running'
             job['status'] = 'running'
-
-            #save_env_var()
-
             # execute the job in the background, and go on with this function
             thr = threading.Thread(target=exec_job, args=(node, job))
             thr.start()
-            # process = mp.Process(target=exec_job, args=(node, job))
-            # process.start()
-
             # once the manager dispatches the job, the ID of the job is printed to stdout
             return jsonify({'result': 'job dispatched', 'job_id': job['id']})
 
@@ -454,17 +393,17 @@ def cloud_launch():
 
         return jsonify({'result': 'no node is available', 'job_id': job['id']})
 
+
 # route to abort a job
 @app.route('/cloudproxy/jobs/<job_id>', methods=["DELETE"])
 def cloud_abort(job_id):
-    """Aborts the specified job.
+    """ Aborts the specified job.
 
         :param: id of the job to be aborted
         :returns: json of the result along with the job id
         """
     # if it was requested to abort a job
     if request.method == 'DELETE':
-        #load_env_var()
         result = 'unknown'
         job = get_job_by_id(job_id)
         # The command fails if the job does not exist or if it has “Completed” status
@@ -490,21 +429,21 @@ def cloud_abort(job_id):
                     container.pause()
                     break
         # print and return the result
-        #save_env_var()
         print(f"Job with id {job_id} was {result}")
         return jsonify({'result': result, 'job_id': job_id})
+
 
 # route to list all pods
 @app.route('/cloudproxy/pods', methods=["GET"])
 def cloud_pod_ls():
-    """Lists all resource pods in the main cluster.
+    """ Lists all resource pods in the main cluster.
 
         :returns: For each resource pod, the name, ID and number of nodes
     """
     # if it was requested to get all pods
     if request.method == 'GET':
-        #load_env_var()
-        return jsonify(result = pods)
+        return jsonify(result=pods)
+
 
 # route to list all nodes in the provided pod
 @app.route('/cloudproxy/nodes', methods=["GET"])
@@ -517,19 +456,18 @@ def cloud_node_ls(pod_id=None):
     """
     # if it was requested to get all nodes
     if request.method == 'GET':
-        #load_env_var()
         #  If no resource pod was specified, all nodes of the cloud system are listed
         if pod_id is None:
             result = [node for node in [pod['nodes'] for pod in pods]]
-        else :
+        else:
             pod = get_pod_by_id(pod_id)
             # if the pod does not exist
             if pod is None:
                 print(f'Pod with id {pod_id} does not exist.')
                 return jsonify({'result': 'does not exist', 'pod_id': pod_id})
-            else :
+            else:
                 result = pod['nodes']
-        return jsonify(result = result)
+        return jsonify(result=result)
 
 
 # route to list all jobs in the provided node
@@ -545,7 +483,6 @@ def cloud_job_ls(node_id=None):
     if request.method == 'GET':
         result = []
         node = None
-        #load_env_var()
         #  If no resource node was specified, all jobs of the cloud system are listed
         if node_id:
             for pod in pods:
@@ -563,7 +500,8 @@ def cloud_job_ls(node_id=None):
                 del tmp['content']
                 result.append(tmp)
         # return the info
-        return jsonify(result = result)
+        return jsonify(result=result)
+
 
 # route to get the log from a job
 @app.route('/cloudproxy/jobs/<job_id>/log', methods=["GET"])
@@ -574,7 +512,6 @@ def cloud_job_log(job_id):
     """
     # if it was requested to get a job's log
     if request.method == 'GET':
-        #load_env_var()
         # the command fails if the job ID does not exist
         job = get_job_by_id(job_id)
         if job is None:
@@ -583,7 +520,7 @@ def cloud_job_log(job_id):
         elif job['status'] != 'completed':
             print(f'Job with id "{job_id}" is not completed yet.')
             return jsonify({'result': 'not completed yet', 'job_id': job_id})
-        else :
+        else:
             node = None
             for pod in pods:
                 node = get_node_by_id(job['node_id'], pod['id'])
@@ -619,7 +556,6 @@ def cloud_node_log(node_id):
     """
     # if it was requested to get a node's logs
     if request.method == 'GET':
-        #load_env_var()
         node = None
         # the command fails if the node does not exist
         for pod in pods:
@@ -629,7 +565,7 @@ def cloud_node_log(node_id):
         if node is None:
             print(f'Node with id "{node_id}" does not exist.')
             return jsonify({'result': 'does not exist', 'node_id': node_id})
-        else :
+        else:
             result = []
             job_ids = []
             for job in jobs:
@@ -648,7 +584,7 @@ def cloud_node_log(node_id):
             # https://stackoverflow.com/questions/2018512/reading-tar-file-contents-without-untarring-it-in-python-script
             for job_id in job_ids:
                 tar = tarfile.open(f'./sh_bin_{job_id}.tar')
-                for member in tar.getmembers() :
+                for member in tar.getmembers():
                     f = tar.extractfile(member)
                     content = f.read()
                     result.append(content.decode())
@@ -658,9 +594,12 @@ def cloud_node_log(node_id):
             thr.start()
             return jsonify(result)
 
+
 def delete_local_logs(job_ids):
+    """ Deletes temporary log files that are saved locally """
     for job_id in job_ids:
         os.remove(f"./sh_bin_{job_id}.tar")
+
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=6000)
