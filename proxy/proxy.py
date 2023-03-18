@@ -83,14 +83,26 @@ def get_node_by_name(name, pod_id=None):
     return next(filter(lambda node: node['name'] == name, nodes), None)
 
 
-def get_node_by_id(node_id, pod_id=None):  # TODO add impl if none
-    """ Gets the node with the specified name
+def get_node_by_id_with_pod(node_id, pod_id):
+    """ Gets the node with the specified name in the specified pod
 
         :returns: node with the given name or None if there are not any
         """
     # we are assuming the pod exists
     nodes = get_pod_by_id(pod_id)['nodes']
     return next(filter(lambda node: node['id'] == node_id, nodes), None)
+
+
+def get_node_by_id(node_id):
+    """ Gets the node with the specified name
+
+        :returns: node with the given name or None if there are not any
+        """
+    for pod in pods:
+        node = get_node_by_id_with_pod(node_id, pod['id'])
+        if node:
+            return node
+    return None
 
 
 def get_pod_by_id(pod_id):
@@ -101,12 +113,12 @@ def get_pod_by_id(pod_id):
     return next(filter(lambda pod: pod['id'] == pod_id, pods), None)
 
 
-def get_pod_by_name(name):
+def get_pod_by_name(pod_name):
     """ Gets the pod with the specified name
 
         :returns: pod with the given ID or None if there are not any
         """
-    return next(filter(lambda pod: pod['name'] == name, pods), None)
+    return next(filter(lambda pod: pod['name'] == pod_name, pods), None)
 
 
 def get_free_node_in_pod(pod_id):
@@ -131,20 +143,20 @@ def get_free_node():
     return None
 
 
-def get_job_by_name(name):
+def get_job_by_name(job_name):
     """ Gets the node with the specified name
 
         :returns: node with the given name or None if there are not any
         """
-    return next(filter(lambda job: job['name'] == name, jobs), None)
+    return next(filter(lambda job: job['name'] == job_name, jobs), None)
 
 
-def get_job_by_id(id):
+def get_job_by_id(job_id):
     """ Get the node with the specified name
 
         :returns: node with the given name or None if there are not any
         """
-    return next(filter(lambda job: job['id'] == id, jobs), None)
+    return next(filter(lambda job: job['id'] == job_id, jobs), None)
 
 
 ### job execution and scheduling #####################################################################################
@@ -415,19 +427,17 @@ def cloud_abort(job_id):
         elif job['status'] == 'registered':
             result = 'successfully dequeued'
             wait_queue.get(job['id'])
-        # If the job has a “running” status, it is assigned the “aborted” status and the corresponding node becomes “idle”
+        # If the job has a “running” status, we assign the “aborted” status and the corresponding node becomes “idle”
         elif job['status'] == 'running':
             result = 'successfully aborted'
             job['status'] = 'aborted'
-            for pod in pods:
-                node = get_node_by_id(job['node_id'], pod['id'])
-                if node:
-                    node['status'] = 'idle'
-                    container = client.containers.get(node['id'])
-                    container.kill()
-                    container.start()
-                    container.pause()
-                    break
+            node = get_node_by_id(job['node_id'])
+            if node:
+                node['status'] = 'idle'
+                container = client.containers.get(node['id'])
+                container.kill()
+                container.start()
+                container.pause()
         # print and return the result
         print(f"Job with id {job_id} was {result}")
         return jsonify({'result': result, 'job_id': job_id})
@@ -485,10 +495,7 @@ def cloud_job_ls(node_id=None):
         node = None
         #  If no resource node was specified, all jobs of the cloud system are listed
         if node_id:
-            for pod in pods:
-                node = get_node_by_id(node_id, pod['id'])
-                if node:
-                    break
+            node = get_node_by_id(node_id)
             # if the pod does not exist
             if node is None:
                 print(f'Node with id {node_id} does not exist.')
@@ -521,11 +528,7 @@ def cloud_job_log(job_id):
             print(f'Job with id "{job_id}" is not completed yet.')
             return jsonify({'result': 'not completed yet', 'job_id': job_id})
         else:
-            node = None
-            for pod in pods:
-                node = get_node_by_id(job['node_id'], pod['id'])
-                if node:
-                    break
+            node = get_node_by_id(job['node_id'])
             if node is None:
                 print(f'Job wit id "{job_id}" was not dispatched.')
                 return jsonify({'result': 'unassigned', 'job_id': job_id})
@@ -556,12 +559,8 @@ def cloud_node_log(node_id):
     """
     # if it was requested to get a node's logs
     if request.method == 'GET':
-        node = None
         # the command fails if the node does not exist
-        for pod in pods:
-            node = get_node_by_id(node_id, pod['id'])
-            if node:
-                break
+        node = get_node_by_id(node_id)
         if node is None:
             print(f'Node with id "{node_id}" does not exist.')
             return jsonify({'result': 'does not exist', 'node_id': node_id})
