@@ -3,7 +3,7 @@ import sys
 import docker
 
 client = docker.from_env()
-app = Flas(__name__)
+app = Flask(__name__)
 
 node_list = []
 
@@ -73,12 +73,12 @@ def register(name, port):
 #
 #helper method - create docker container
 #container_name = node_name, port_number = used when container is created
-def launch_node(container_name, port_number){
+def launch_node(container_name, port_number):
 
     [img, logs] = client.images.build(path='home/comp598-user/app_light/', rm=True, dockerfile='/home/comp598-user/app_light/Dockerfile')
 
     #make sure if the container_name is running ('ONLINE), remove it
-    for container in client/containers.list():
+    for container in client.containers.list():
         if container.name == container_name:
             container.remove(v=True, force=True)
     
@@ -98,7 +98,7 @@ def launch_node(container_name, port_number){
     
     print("successfully launched a node")
     return node_list[index]
-}
+
 
 @app.route('/launch') #choose which node will launch the job
 def launch():
