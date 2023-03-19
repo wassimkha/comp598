@@ -27,30 +27,8 @@ WRK_DIR = '/home'
 LOG_DIR = f'{WRK_DIR}/logs'
 JOB_DIR = f'{WRK_DIR}/jobs'
 # structure - the cluster is a set of pods
-
-'''
-pods := [ {'id', 'name', 'type', 'nodes': [ {'id', 'name', 'port', 'status'}, ... ] }, ... ] 
-jobs := [ {'id', 'name', 'content', 'status', 'node_id'}, ... ]
-wait_queue := [ job_id, ... ]
-logs := job ID, date & time, content 
-'''
-
-# What's new in A2 :
-# - maximum number of nodes
-# - present cpu and memory limits
-# - status idle->new ; running->online
-# TODO get rid of wait_queue, no pods, ports?
-
-
 '''
 pod = {'id', 'status', 'job_path', 'nodes': [ {'id', 'name', 'port', 'status'}, ... ] }, ...
-
-id is the type  
-
-pods := [ {'id', 'nodes': [ {'id', 'name', 'port', 'status'}, ... ] }, ... ] 
-jobs := [ {'id', 'name', 'content', 'status', 'node_id'}, ... ]
-wait_queue := [ job_id, ... ]
-logs := job ID, date & time, content 
 '''
 
 # a pod will have one job assigned to it, and this job can
@@ -63,9 +41,6 @@ initialized = False
 DEFAULT_POD = "Heavy"
 DEFAULT_JOB = "Large"
 MAX_NODES = 10
-# nodes at first
-initial = 1  # TODO each pod has a JOB attributed upon initialization
-first_port = 15000
 # large nodes properties
 cpus = 0.8
 memory = "500m"
@@ -135,53 +110,6 @@ def get_free_node():
     return next(filter(lambda node: node['status'] == 'NEW', heavy_pod['nodes']), None)
 
 
-### job execution and scheduling #####################################################################################
-
-def exec_job(node, job):  # , process):
-    """ Executes the job on a new thread, and append its output to a log file inside the node it's running on """
-
-    # once the manager dispatches the job, the ID of the job is printed to stdout
-    print(f"Job with name {job['name']} and id {job['id']} is being dispatched.")
-
-    # start the container
-    container = client.containers.get(node['name'])
-    container.unpause()
-
-    # create the files for job and log, and upload it to the container
-    path_to_job = f"{JOB_DIR}/{job['name']}"
-    path_to_log = f"{LOG_DIR}/job_{job['id']}.log"
-    content = job['content']
-    job_id = job['id']
-    date_time = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-
-    container.exec_run(f'touch {path_to_job}')
-    container.exec_run(f"chmod 777 {path_to_job}")
-    container.exec_run(["/bin/sh", "-c", f"echo '{content}' > {path_to_job}"])
-
-    # execute the job
-    exit_code, output = container.exec_run(["/bin/sh", "-c", f"sh {path_to_job}"])
-
-    # if the job was aborted
-    if exit_code != 0:
-        print(f"Job with name {job['name']} and id {job['id']} was aborted during execution.")
-
-    # save the output to a log file
-    output = io.StringIO(output.decode()).getvalue()
-    container.exec_run(["/bin/sh", "-c", f"echo 'log file for job {job_id}' > {path_to_log}"])
-    container.exec_run(["/bin/sh", "-c", f"echo '{date_time}' >> {path_to_log}"])
-    container.exec_run(["/bin/sh", "-c", f"echo '{output}' >> {path_to_log}"])
-
-    # pause the container
-    container.pause()
-
-    # assign the “completed” status to the job and the node becomes “idle” again
-    job['status'] = 'completed'
-    node['status'] = 'NEW'
-
-    # we are done
-    print(f"Job with path {job['name']} and id {job['id']} was successfully completed.")
-
-
 ### A2 functions #####################################################################################################
 
 @app.route(f'/cloudproxy/{DEFAULT_POD.lower()}', methods=["POST"])
@@ -193,6 +121,8 @@ def cloud_init():
     # if it was requested to initialize a new cluster
     if request.method == 'POST':
         print("Request to initialize main resource cluster.")
+        # TODO hardcode app, pass the parameters as JSON
+        # path_to_dockerfile := f'./app/'
         # we can't instantiate a cluster if it was already initialized
         global heavy_pod, initialized
         if initialized:
@@ -365,6 +295,7 @@ def cloud_launch():
         print(result)
         return jsonify({'result': result, 'port': port, 'name': node_name, 'is_paused': heavy_pod['paused']})
 
+
 @app.route(f'/cloudproxy/{DEFAULT_POD.lower()}/resume', methods=["PUT"])
 def cloud_resume():
     """ Unpauses the pod.
@@ -379,6 +310,7 @@ def cloud_resume():
         return jsonify({'result': 'success',
                         'online': [node for node in heavy_pod['nodes'] if node['status'] == "ONLINE"]})
 
+
 @app.route(f'/cloudproxy/{DEFAULT_POD.lower()}/pause', methods=["PUT"])
 def cloud_pause():
     """ Pauses the pod.
@@ -390,12 +322,13 @@ def cloud_pause():
         print(f"Pausing the pod.")
         # pause the container
         heavy_pod['paused'] = True
-        for node in heavy_pod['nodes']:
-            if node['status'] == "ONLINE":
-                container = client.containers.get(node['id'])
-                container.remove(force=True)
-                heavy_pod['nodes'].remove(node)
-        return jsonify({'result': 'success'})
+        # for node in heavy_pod['nodes']:
+        #     if node['status'] == "ONLINE":
+        #         container = client.containers.get(node['id'])
+        #         container.remove(force=True)
+        #         heavy_pod['nodes'].remove(node)
+        return jsonify({'result': 'success',
+                        'online': [node for node in heavy_pod['nodes'] if node['status'] == "ONLINE"]})
 
 
 # route to list all pods
