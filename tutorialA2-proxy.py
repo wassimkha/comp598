@@ -74,20 +74,21 @@ def register(name, port):
 #helper method - create docker container
 #container_name = node_name, port_number = used when container is created
 def launch_node(container_name, port_number):
-
+    # build the image from our DockerFile
     [img, logs] = client.images.build(path='home/comp598-user/app_light/', rm=True, dockerfile='/home/comp598-user/app_light/Dockerfile')
 
-    #make sure if the container_name is running ('ONLINE), remove it
+    # make sure there isn't a container with the same name running on the VM
+    # if there is one, we just remove it (this is just to avoid issues)
     for container in client.containers.list():
         if container.name == container_name:
             container.remove(v=True, force=True)
     
-    #run the container 
+    # run the app.py on the container
     client.containers.run(image=img, detach=True, name=container_name, 
                             commad=['python', 'app.py', container_name],
-                            ports{'5000/tcp': port_number})
+                            ports={'5000/tcp': port_number})
     
-    #update dictionary
+    # update dictionary to reflect that the node is running
     index = -1
     for i in range(len(node_list)):
         node = node_list[i]
