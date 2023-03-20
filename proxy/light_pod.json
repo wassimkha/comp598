@@ -1,0 +1,7 @@
+{
+    "type": "Light",
+    "max_nodes": 20,
+    "cpus": 0.3,
+    "memory": "100m",
+    "node_type": "Small"
+}

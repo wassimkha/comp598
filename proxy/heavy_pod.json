@@ -1,0 +1,7 @@
+{
+    "type": "Heavy",
+    "max_nodes": 10,
+    "cpus": 0.8,
+    "memory": "500m",
+    "node_type": "Large"
+}

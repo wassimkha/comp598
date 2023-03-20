@@ -1,0 +1,7 @@
+{
+    "type": "Medium",
+    "max_nodes": 15,
+    "cpus": 0.5,
+    "memory": "300m",
+    "node_type": "Medium"
+}

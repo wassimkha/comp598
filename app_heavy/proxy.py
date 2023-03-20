@@ -9,7 +9,6 @@ import threading
 # docker
 import docker  # can't use swarm or networks !
 from docker import errors
-from docker.types import LogConfig
 # interactions with the VM
 import os
 
@@ -35,20 +34,20 @@ pod = {'id', 'status', 'job_path', 'nodes': [ {'id', 'name', 'port', 'status'}, 
 # be served by any node in the pod
 
 # there is only one pod
-heavy_pod = dict()
+pod = dict()
 initialized = False
-# heavy pod properties
-DEFAULT_POD = "Heavy"
-DEFAULT_JOB = "Large"
-MAX_NODES = 10
-# large nodes properties
-cpus = 0.8
-memory = "500m"
-
+# pod properties
+POD_TYPE = ""
+JOB_TYPE = ""
+MAX_NODES = 0
+# node properties
+CPUS = 0
+MEMORY = ""
+logs = []
 
 ### helpers ##########################################################################################################
 
-def node_init(node_name, port, cpu_ratio=cpus, ram=memory):
+def node_init(node_name, port, cpus=CPUS, memory=MEMORY):
     """ Creates a new node
 
         :returns: the node that was initialized
@@ -56,23 +55,25 @@ def node_init(node_name, port, cpu_ratio=cpus, ram=memory):
     # doc: https://docker-py.readthedocs.io/en/stable/containers.html#docker.models.containers.Container.status
 
     # build the image from the DockerFile
-    [img, logs] = client.images.build(path=heavy_pod['job']['path_to_dockerfile'], rm=True,
-                                      dockerfile=f"{heavy_pod['job']['path_to_dockerfile']}/Dockerfile")
+    [img, log] = client.images.build(path=pod['job']['path'], rm=True,
+                                     dockerfile=pod['job']['dockerfile'])
 
     # linux Alpine image is running the containers, each has a specific CPU, memory, and storage limit factor
-    client.containers.run(image=img, ports={'5000/tcp': port}, log_config=LogConfig(type='local'), stop_signal='SIGINT',
+    client.containers.run(image=img, ports={'5000/tcp': port}, stop_signal='SIGINT',
                           detach=True, name=node_name, stdin_open=True, tty=True,
-                          cap_add='SYS_ADMIN', cpu_shares=int(cpu_ratio*1024), mem_limit=ram)  # storage_opt=storage)
+                          cap_add='SYS_ADMIN', cpu_shares=int(cpus * 1024), mem_limit=memory,)  # storage_opt=storage)
     container = client.containers.get(node_name)
+    # make a directory for the logs
     container.exec_run(f"mkdir -p {LOG_DIR}")
-    container.exec_run(f"mkdir -p {JOB_DIR}")
-
+    container.exec_run(f'touch {LOG_DIR}/{JOB_TYPE.lower()}_{port}.log')
+    # log = container.logs()
+    # logs.append(log)
     # at this point, the node is running, but it is not running the job (i.e. the corresponding web server)
     # container.pause()
 
     # add the new node to the pod; initially, it has the “NEW” status
     node_id = container.__getattribute__('id')
-    heavy_pod['nodes'].append({'id': node_id, 'name': node_name, 'port': port, 'status': 'NEW'})
+    pod['nodes'].append({'id': node_id, 'name': node_name, 'port': port, 'status': 'NEW'})
 
     # return the node
     return get_node_by_name(node_name)
@@ -83,7 +84,7 @@ def get_node_by_port(port):
 
         :returns: node with the given name or None if there are not any
         """
-    return next(filter(lambda node: node['port'] == port, heavy_pod['nodes']), None)
+    return next(filter(lambda node: node['port'] == port, pod['nodes']), None)
 
 
 def get_node_by_name(name):
@@ -91,7 +92,7 @@ def get_node_by_name(name):
 
         :returns: node with the given name or None if there are not any
         """
-    return next(filter(lambda node: node['name'] == name, heavy_pod['nodes']), None)
+    return next(filter(lambda node: node['name'] == name, pod['nodes']), None)
 
 
 def get_node_by_id(node_id):
@@ -99,7 +100,7 @@ def get_node_by_id(node_id):
 
         :returns: node with the given name or None if there are not any
         """
-    return next(filter(lambda node: node['id'] == node_id, heavy_pod['nodes']), None)
+    return next(filter(lambda node: node['id'] == node_id, pod['nodes']), None)
 
 
 def get_free_node():
@@ -107,12 +108,35 @@ def get_free_node():
 
         :returns: a free node or None if there are not any
         """
-    return next(filter(lambda node: node['status'] == 'NEW', heavy_pod['nodes']), None)
+    return next(filter(lambda node: node['status'] == 'NEW', pod['nodes']), None)
+
+def exec_job(node):
+    """ Executes the job on a new thread, and append its output to a log file inside the node it's running on """
+
+    # node is now ONLINE
+    node['status'] = "ONLINE"
+
+    # once the manager dispatches the job, the ID of the job is printed to stdout
+    port = node['port']
+    print(f"Job with name is being dispatched on port {port}.")
+
+    # execute the job
+    container = client.containers.get(node['name'])
+    exit_code, output = container.exec_run(['python', 'app.py'], stdin=True)
+
+    # save the output to a log file
+    date_time = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+    log_file = f'{LOG_DIR}/{JOB_TYPE.lower()}_{port}.log'
+    output = io.StringIO(output.decode()).getvalue()
+    container.exec_run(["/bin/sh", "-c", f"echo 'LOG - {JOB_TYPE.lower()} on port {port}' > {log_file}"])
+    container.exec_run(["/bin/sh", "-c", f"echo '({date_time})' >> {log_file}"])
+    container.exec_run(["/bin/sh", "-c", f"echo '{output}' >> {log_file}"])
+
 
 
 ### A2 functions #####################################################################################################
 
-@app.route(f'/cloudproxy/{DEFAULT_POD.lower()}', methods=["POST"])
+@app.route(f'/cloudproxy', methods=["POST"])
 def cloud_init():
     """ Initializes the main resource cluster. All cloud services are set up.
 
@@ -120,40 +144,48 @@ def cloud_init():
     """
     # if it was requested to initialize a new cluster
     if request.method == 'POST':
+        global POD_TYPE, JOB_TYPE, MAX_NODES, CPUS, MEMORY
+        global pod, initialized
         print("Request to initialize main resource cluster.")
-        # TODO hardcode app, pass the parameters as JSON
-        # path_to_dockerfile := f'./app/'
         # we can't instantiate a cluster if it was already initialized
-        global heavy_pod, initialized
         if initialized:
-            result = 'Resource cluster was already initialized.'
+            result = 'Failure : resource cluster was already initialized.'
+        # proxy type is provided as a JSON request
+        elif (not request.is_json) or ((request_data := request.get_json()) is None) or (len(request_data) != 5):
+            result = 'Failure : proxy type information needs to be provided in JSON file.'
         # each pod has exactly one job that can be served by any node in the pod
-        elif (len(request.args) == 0) or ((path_to_dockerfile := request.args['dockerfile_dir']) == ""):
-            result = 'Failure: no job was provided.'
-        elif not os.path.exists(path_to_dockerfile):
+        # the job is specified through a Dockerfile in the same directory as the proxy
+        elif not os.path.exists(wrk_dir := os.getcwd()):
             result = 'Failure: invalid path.'
-        elif not os.path.isfile(f"{path_to_dockerfile}/Dockerfile"):
-            result = 'Failure: no Dockerfile found in the provided directory.'
+        elif not os.path.isfile(dockerfile := f'{wrk_dir}/Dockerfile'):
+            result = 'Failure: no Dockerfile found in the working directory.'
         else:
             initialized = True
-            # if the path is valid, we save the job
-            job = {'id': DEFAULT_JOB,
-                   'path_to_dockerfile': path_to_dockerfile,
-                   'node_id': None}
+            # constant values related to the proxy type
+            POD_TYPE = request_data['type']
+            JOB_TYPE = request_data['node_type']
+            MAX_NODES = request_data['max_nodes']
+            CPUS = request_data['cpus']
+            MEMORY = request_data['memory']
+            # save the job
+            job = {'id': JOB_TYPE,
+                   'path': wrk_dir,
+                   'dockerfile': dockerfile,
+                   'was_launched': False}
             # instantiate the default pod (a pod is a collection of nodes)
             # each pod is initially paused since it has no Node
-            heavy_pod = {'id': DEFAULT_POD,
-                         'paused': True,
-                         'job': job,
-                         'max_nodes': MAX_NODES,
-                         'nodes': []}
+            pod = {'id': POD_TYPE,
+                   'paused': True,
+                   'job': job,
+                   'max_nodes': MAX_NODES,
+                   'nodes': []}
             # a cluster is a set of pods => this is a cluster so nothing else to do here
-            result = f'Successfully initialized {DEFAULT_POD} pod.'
+            result = f'Successfully initialized {POD_TYPE} pod.'
         print(result)
         return jsonify({'result': result})
 
 
-@app.route(f'/cloudproxy/{DEFAULT_POD.lower()}/pods/<pod_name>', methods=["POST"])
+@app.route(f'/cloudproxy/pods/<pod_name>', methods=["POST"])
 def cloud_pod_register(pod_name):
     """ Registers a new pod with the specified name to the main resource cluster. Note: pod names must be unique.
 
@@ -169,7 +201,7 @@ def cloud_pod_register(pod_name):
         return jsonify({'result': result, 'pod_name': 'unknown'})
 
 
-@app.route(f'/cloudproxy/{DEFAULT_POD.lower()}/pods/<pod_name>', methods=["DELETE"])
+@app.route(f'/cloudproxy/pods/<pod_name>', methods=["DELETE"])
 def cloud_pod_rm(pod_name):
     """ Removes the specified pod.
 
@@ -186,9 +218,9 @@ def cloud_pod_rm(pod_name):
 
 
 # route to register new node with name provided
-@app.route(f'/cloudproxy/{DEFAULT_POD.lower()}/nodes/<node_name>/<port_number>', methods=["POST"])
-@app.route(f'/cloudproxy/{DEFAULT_POD.lower()}/nodes/<node_name>/<port_number>/<pod_id>', methods=["POST"])
-def cloud_register(node_name, port_number, pod_id=DEFAULT_POD):
+@app.route(f'/cloudproxy/nodes/<node_name>/<port_number>', methods=["POST"])
+@app.route(f'/cloudproxy/nodes/<node_name>/<port_number>/<pod_id>', methods=["POST"])
+def cloud_register(node_name, port_number, pod_id=POD_TYPE):
     """ Creates a new node and registers it to the specified pod ID.
 
         :param port_number: port for the node
@@ -199,13 +231,10 @@ def cloud_register(node_name, port_number, pod_id=DEFAULT_POD):
     # if it was requested to register a new node
     if request.method == 'POST':
         print(f"Request to register new node {node_name} at port {port_number}.")
-        global heavy_pod
+        global pod, MAX_NODES, POD_TYPE
         node_status = 'unknown'
-        # if the pod with specified ID does not exist, the command fails
-        if pod_id != DEFAULT_POD:
-            result = 'Failure: pod with specified ID does not exist in this cluster.'
         # if the limit of nodes registered for this pod has already been met, the command fails
-        elif len(heavy_pod['nodes']) >= MAX_NODES:
+        if len(pod['nodes']) >= MAX_NODES:
             result = 'Failure: pod is already at maximum resource capacity.'
         # if the node already exists, we return its status
         elif get_node_by_name(node_name) is not None:
@@ -220,13 +249,13 @@ def cloud_register(node_name, port_number, pod_id=DEFAULT_POD):
             node_init(node_name, port_number)  # this does not run the job
             node_status = 'NEW'
         # print and return the result, the current status of the node and its name
-        print({'result': result, 'node_status': node_status, 'port_numer': port_number, 'node_name': node_name})
-        return jsonify({'result': result, 'node_status': node_status, 'port_numer': port_number,
+        print({'result': result, 'node_status': node_status, 'port_number': port_number, 'node_name': node_name})
+        return jsonify({'result': result, 'node_status': node_status, 'port_number': port_number,
                         'node_name': node_name})
 
 
 # route to remove nodes
-@app.route(f'/cloudproxy/{DEFAULT_POD.lower()}/nodes/<node_name>', methods=["DELETE"])
+@app.route(f'/cloudproxy/nodes/<node_name>', methods=["DELETE"])
 def cloud_rm(node_name):
     """ Removes the specified node.
 
@@ -237,7 +266,7 @@ def cloud_rm(node_name):
     # if it was requested to delete a node
     if request.method == 'DELETE':
         print(f"Request to delete the node {node_name}.")
-        global heavy_pod
+        global pod
         was_online = 'unknown'
         port = 'unknown'
         # the command fails if the name does not exist or if its status is not “idle”
@@ -252,19 +281,19 @@ def cloud_rm(node_name):
             # is shut down and the pod should remove its reference to the node
             container = client.containers.get(node_name)
             container.remove(force=True)
-            heavy_pod['nodes'].remove(node)
+            pod['nodes'].remove(node)
             # If this removed node was the last node of the pod, then the pod is paused and responds to
             # any incoming client requests
-            heavy_pod['paused'] = (len(heavy_pod['nodes']) == 0)
+            pod['paused'] = (len(pod['nodes']) == 0)
             result = 'Node successfully deleted.'
         # if the node does not exist, the command fails
         print(result)
         return jsonify({'result': result, 'node_name': node_name, 'port': port,
-                        'was_online': was_online, 'is_paused': heavy_pod['paused']})
+                        'was_online': was_online, 'is_paused': pod['paused']})
 
 
 # route to launch the node
-@app.route(f'/cloudproxy/{DEFAULT_POD.lower()}/launch', methods=["POST"])
+@app.route(f'/cloudproxy/launch', methods=["POST"])
 def cloud_launch():
     """ Launches the specified job.
 
@@ -280,6 +309,7 @@ def cloud_launch():
         if (node := get_free_node()) is None:
             result = 'Failure : no node available to serve the job.'
         else:
+            pod['job']['was_launched'] = True
             # for the response
             port = node['port']
             node_name = node['name']
@@ -287,16 +317,20 @@ def cloud_launch():
             node['status'] = "ONLINE"
             container = client.containers.get(node['id'])
             # run app.py on the container at the specified port
-            container.exec_run(['python', 'app.py'])
+            thr = threading.Thread(target=exec_job, args=(node,))
+            thr.start()
+            # save the output to a log file
+            #log = container.attach(stdout=True, stderr=True, logs=True)
+            #logs.append(log)
             result = 'Successfully launched the job.'
 
         # if the pod is paused, remains “ONLINE” but doesn't notify the Load Balancer
         # if the pod is running, then the Load Balancer must be notified that this node is now available
         print(result)
-        return jsonify({'result': result, 'port': port, 'name': node_name, 'is_paused': heavy_pod['paused']})
+        return jsonify({'result': result, 'port': port, 'name': node_name, 'is_paused': pod['paused']})
 
 
-@app.route(f'/cloudproxy/{DEFAULT_POD.lower()}/resume', methods=["PUT"])
+@app.route(f'/cloudproxy/resume', methods=["PUT"])
 def cloud_resume():
     """ Unpauses the pod.
 
@@ -306,12 +340,12 @@ def cloud_resume():
     if request.method == 'PUT':
         print(f"Unpausing the pod.")
         # unpause the container
-        heavy_pod['paused'] = False
+        pod['paused'] = False
         return jsonify({'result': 'success',
-                        'online': [node for node in heavy_pod['nodes'] if node['status'] == "ONLINE"]})
+                        'online': [node for node in pod['nodes'] if node['status'] == "ONLINE"]})
 
 
-@app.route(f'/cloudproxy/{DEFAULT_POD.lower()}/pause', methods=["PUT"])
+@app.route(f'/cloudproxy/pause', methods=["PUT"])
 def cloud_pause():
     """ Pauses the pod.
 
@@ -321,18 +355,18 @@ def cloud_pause():
     if request.method == 'PUT':
         print(f"Pausing the pod.")
         # pause the container
-        heavy_pod['paused'] = True
-        # for node in heavy_pod['nodes']:
+        pod['paused'] = True
+        # for node in pod['nodes']:
         #     if node['status'] == "ONLINE":
         #         container = client.containers.get(node['id'])
         #         container.remove(force=True)
-        #         heavy_pod['nodes'].remove(node)
+        #         pod['nodes'].remove(node)
         return jsonify({'result': 'success',
-                        'online': [node for node in heavy_pod['nodes'] if node['status'] == "ONLINE"]})
+                        'online': [node for node in pod['nodes'] if node['status'] == "ONLINE"]})
 
 
 # route to list all pods
-@app.route(f'/cloudproxy/{DEFAULT_POD.lower()}/pods', methods=["GET"])
+@app.route(f'/cloudproxy/pods', methods=["GET"])
 def cloud_pod_ls():
     """ Lists all resource pods in the main cluster.
 
@@ -341,11 +375,11 @@ def cloud_pod_ls():
     # if it was requested to get all pods
     if request.method == 'GET':
         print(f"Request to list all pods.")
-        return jsonify(pod=heavy_pod)
+        return jsonify(pod=pod)
 
 
 # route to list all nodes in the provided pod
-@app.route(f'/cloudproxy/{DEFAULT_POD.lower()}/nodes', methods=["GET"])
+@app.route(f'/cloudproxy/nodes', methods=["GET"])
 def cloud_node_ls():
     """ Lists all the nodes in the specified resource pod. If no resource
         pod was specified, all nodes of the cloud system are listed.
@@ -354,18 +388,18 @@ def cloud_node_ls():
     """
     # if it was requested to get all nodes
     if request.method == 'GET':
-        print(f"Request to list all nodes in pod {DEFAULT_POD}.")
+        print(f"Request to list all nodes in pod {POD_TYPE}.")
         #  If no resource pod was specified, all nodes of the cloud system are listed
         if not initialized:
             result = 'Pod was not initialized yet.'
         else:
-            result = heavy_pod['nodes']
+            result = pod['nodes']
         return jsonify(result=result)
 
 
 # route to list all jobs in the provided node
-@app.route(f'/cloudproxy/{DEFAULT_POD.lower()}/jobs', methods=["GET"])
-@app.route(f'/cloudproxy/{DEFAULT_POD.lower()}/jobs/<node_id>', methods=["GET"])
+@app.route(f'/cloudproxy/jobs', methods=["GET"])
+@app.route(f'/cloudproxy/jobs/<node_id>', methods=["GET"])
 def cloud_job_ls(node_id=None):
     """Lists all the jobs that were assigned to the specified node. If no
        node is specified, all jobs that were launched by the user are listed.
@@ -389,8 +423,8 @@ def cloud_job_ls(node_id=None):
 
 
 # route to get the log from a job
-@app.route(f'/cloudproxy/{DEFAULT_POD.lower()}/jobs/<job_id>/log', methods=["GET"])
-def cloud_job_log(job_id):
+@app.route(f'/cloudproxy/jobs/<job_id>/log', methods=["GET"])
+def cloud_job_log(job_id=JOB_TYPE):
     """ Returns the specified job log.
 
         :returns: job log as json
@@ -398,39 +432,46 @@ def cloud_job_log(job_id):
     # if it was requested to get a job's log
     if request.method == 'GET':
         print(f"Request to list all logs.")
+        # result = []
+        # for line in logs:
+        #     result.append(line.decode())
+        # return jsonify(logs=result)
         # the command fails if the job ID does not exist
-        if (job := heavy_pod['job']) is None:
-            result = 'Job does not exist.'
-        elif job['node_id'] is None:
-            result = 'Job has not been launched.'
+        if (job := pod['job']) is None:
+            return jsonify({'result': 'Job does not exist.', 'job': JOB_TYPE})
+        elif not job['was_launched']:
+            return jsonify({'result': 'Job has not been launched.', 'job': JOB_TYPE})
         else:
-            node_ids = []
+            online = []
             result = []
-            for node in heavy_pod['nodes']:
+            for node in pod['nodes']:
                 if node['status'] == "ONLINE":
-                    node_ids.append(node['id'])
-            for node_id in node_ids:
-                container = client.containers.get(node_id)
-                bits, stat = container.get_archive(f"{LOG_DIR}/job_{job['id']}.log")
+                    online.append(node)
+            for node in online:
+                job_id = pod['job']['id'].lower()
+                port = node['port']
+                container = client.containers.get(node['id'])
+                bits, stat = container.get_archive(f"{LOG_DIR}/{job_id}_{port}.log")
                 # https://stackoverflow.com/questions/50552501/how-get-file-from-docker-container-in-python
-                file = open(f'./sh_bin_{node_id}.tar', 'wb')
+                file = open(f'./sh_bin_{job_id}_{port}.tar', 'wb')
                 for chunk in bits:
                     file.write(chunk)
                 file.seek(0)
+                file.close()
                 # https://stackoverflow.com/questions/2018512/reading-tar-file-contents-without-untarring-it-in-python-script
-                tar = tarfile.open(f'./sh_bin_{node_id}.tar')
+                tar = tarfile.open(f'./sh_bin_{job_id}_{port}.tar')
                 f = tar.extractfile(tar.getmembers()[0])
                 content = f.read()
                 result.append(content.decode())
                 tar.close()
             # delete the temporary files before returning
-            thr = threading.Thread(target=delete_local_logs, args=(list(node_ids),))
+            thr = threading.Thread(target=delete_local_logs, args=([node['port'] for node in online],))
             thr.start()
-        return jsonify({'result': result, 'job_id': job_id})
+        return result
 
 
 # route to get the logs from node
-@app.route(f'/cloudproxy/{DEFAULT_POD.lower()}/nodes/<node_id>/logs', methods=["GET"])
+@app.route(f'/cloudproxy/nodes/<node_id>/logs', methods=["GET"])
 def cloud_node_log(node_id):
     """ Returns the specified node logs
 
@@ -440,35 +481,35 @@ def cloud_node_log(node_id):
     if request.method == 'GET':
         print(f"Request to list logs of node {node_id}.")
         # the command fails if the node does not exist
-        if (node := get_node_by_id(node_id)) is None:
-            result = 'Node with does not exist.'
+        if ((node := get_node_by_id(node_id)) is None) and ((node := get_node_by_name(node_id)) is None):
+            return jsonify({'result': 'Node with does not exist.', 'node_id': node_id})
         else:
-            result = []
-            job_id = heavy_pod['job']['id']
+            job_id = pod['job']['id'].lower()
+            port = node['port']
             container = client.containers.get(node_id)
-            bits, stat = container.get_archive(f"{LOG_DIR}/job_{job_id}.log")
+            bits, stat = container.get_archive(f"{LOG_DIR}/{job_id}_{port}.log")
             # https://stackoverflow.com/questions/50552501/how-get-file-from-docker-container-in-python
-            file = open(f'./sh_bin_{job_id}.tar', 'wb')
+            file = open(f'./sh_bin_{job_id}_{port}.tar', 'wb')
             for chunk in bits:
                 file.write(chunk)
             file.seek(0)
+            file.close()
             # https://stackoverflow.com/questions/2018512/reading-tar-file-contents-without-untarring-it-in-python-script
-            tar = tarfile.open(f'./sh_bin_{job_id}.tar')
+            tar = tarfile.open(f'./sh_bin_{job_id}_{port}.tar')
             f = tar.extractfile(tar.getmembers()[0])
             content = f.read()
+            result = content.decode()
             tar.close()
             # delete the temporary files before returning
-            thr = threading.Thread(target=delete_local_logs, args=(list(job_id),))
+            thr = threading.Thread(target=delete_local_logs, args=([port],))
             thr.start()
-            return jsonify(content.decode())
-        return jsonify({'result': result, 'node_id': node_id})
+            return result
 
-
-def delete_local_logs(job_ids):
+def delete_local_logs(ports):
     """ Deletes temporary log files that are saved locally """
-    for job_id in job_ids:
-        os.remove(f"./sh_bin_{job_id}.tar")
+    for port in ports:
+        os.remove(f"./sh_bin_{JOB_TYPE.lower()}_{port}.tar")
 
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=6000)
+    app.run(debug=True, host='0.0.0.0', port=5000)
