@@ -25,16 +25,18 @@ load balancer listening on requests sent to 10.140.17.255 (vm2): 5002 and depend
 
 **instruction**
 VM 1: 
-```nohup /home/comp598-user/comp598/app_light/proxy.py```
+```nohup python3 /home/comp598-user/comp598/app_light/proxy.py &```
+
 ```cd /home/comp598-user/comp598/cloud_toolset/cloud_toolset.py```
+
 ```python3 cloud_toolset.py```
 
 VM 2:
-```nohup /home/comp598-user/comp598/app_medium/proxy.py```
-```nohup /home/comp598-user/comp598/ressource_manager/middleware/middleware.py```
+```nohup python3 /home/comp598-user/comp598/app_medium/proxy.py &```
+```python3 /home/comp598-user/comp598/ressource_manager/middleware/middleware.py```
 
 VM 3: 
-```nohup /home/comp598-user/comp598/app_heavy/proxy.py```
+```nohup python3 /home/comp598-user/comp598/app_heavy/proxy.py &```
 
 **commands for haproxy**
 
