@@ -99,7 +99,7 @@ def cloud_register(url, command):
             response_json = response.json()
             result = response_json["result"]
 
-            print("For new node named:", node_name, " registered on pod id: ", pod_id, ", register status is", result)
+            print("For new node named:", command_list[2], " registered on pod id: ", command_list[3], ", register status is", result)
 
     except requests.exceptions.RequestException as e:
         print(f"An error occurred while sending the request: {e}")
