@@ -1,3 +1,4 @@
+import subprocess
 import json as js
 from flask import Flask, Response, render_template, request, jsonify
 import pycurl
@@ -137,6 +138,8 @@ def cloud_register(node_name, pod_id):
     #URL, ip_no_port, servers, port_list = get_serverPrams(pod_id)
     get_serverPrams(pod_id)
     port_number = None
+#    print("this is the port number list:")
+ #   print(port_list)
 
     #loop through list of port numbers and in find an available one
     for key, value in port_list.items():
@@ -221,23 +224,24 @@ def cloud_launch(pod_id):
     response = requests.post(URL + '/cloudproxy/launch')
 
     response_json = response.json()
-    status = response_json["status"]
+    result = response_json["result"]
 
-    if status == 'Successfully launched the job.':
+    if result == 'Successfully launched the job.':
         node_name = response_json["name"]
         port = response_json["port"]
         is_paused = response_json["is_paused"]
 
     #if pod is paused, does not notify load balancer
     #if pod is up and running (!paused), load balancer notified
-    if is_paused == False:
-        add_command = "echo 'experimental-mode on; add server " + servers + "/'" + node_name + ' ' + ip_no_port + ':'  + port + '| sudo socat stdio /var/run/haproxy.sock'
-        subprocess.run(add_command, shell=True, check=True)
+        if is_paused == False:
+            add_command = "echo 'experimental-mode on; add server " + servers + "/'" + node_name + ' ' + ip_no_port + ':'  + port + '| sudo socat stdio /var/run/haproxy.sock'
+            subprocess.run(add_command, shell=True, check=True)
 
-        #enable
-        enable_command = "echo 'experimental-mode on; set server " + servers + "/'" + node_name + ' state ready ' + '| sudo socat stdio /var/run/haproxy.sock'
-        subprocess.run(enable_command, shell=True, check=True)
+            #enable
+            enable_command = "echo 'experimental-mode on; set server " + servers + "/'" + node_name + ' state ready ' + '| sudo socat stdio /var/run/haproxy.sock'
+            subprocess.run(enable_command, shell=True, check=True)
 
+    #in either case, return response
     return Response(response.content, content_type=response.headers['content-type'])     
 
 #function to resume a specified pod_id (put all nodes in LB on pause)
@@ -253,7 +257,9 @@ def cloud_resume(pod_id):
     online_nodes = response_json["online"]
     
     if online_nodes: #if not empty
-        for name in online_nodes:
+        for node in online_nodes:
+            name = node['name']
+            #TODO: name is a dictionary
             #set these nodes to ready state for load balancer:
             enable_command = "echo 'experimental-mode on; set server " + servers + "/'" + name + ' state ready ' + '| sudo socat stdio /var/run/haproxy.sock'
             subprocess.run(enable_command, shell=True, check=True)
@@ -275,7 +281,9 @@ def cloud_pause(pod_id):
     online_nodes = response_json["online"]
 
     if online_nodes:
-        for name in online_nodes:
+    #TODO
+        for node in online_nodes:
+            name = node['name']
             #put the node in maintenance state in HAProxy 
             disable_command = "echo 'experimental-mode on; set server " + servers + "/'" + name + ' state maint ' + '| sudo socat stdio /var/run/haproxy.sock'
             subprocess.run(disable_command, shell=True, check=True)
