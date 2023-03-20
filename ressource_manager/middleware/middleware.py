@@ -256,7 +256,7 @@ def cloud_resume(pod_id):
     #get all the nodes with ONLINE status
     response_json = response.json()
     online_nodes = response_json["online"]
-    
+    print(online_nodes)
     if online_nodes: #if not empty
         for node in online_nodes:
             name = node['name']
@@ -296,7 +296,7 @@ def cloud_pause(pod_id):
 
             #remove thee nodes competely
             rm_command = "echo 'experimental-mode on; del server " + servers + "/'" + name + '| sudo socat stdio /var/run/haproxy.sock'
-                subprocess.run(rm_command, shell=True, check=True)
+            subprocess.run(rm_command, shell=True, check=True)
 
         return jsonify({'response': 'successfully paused the pod'})
     else:
