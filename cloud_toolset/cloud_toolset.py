@@ -10,7 +10,6 @@ def cloud_init (url):
         response = requests.post(url + '/cloudproxy')
         print(response.content)
         response_json = response.json()
-        print(response_json)
     except requests.exceptions.RequestException as e:
         print(f"An error occurred: {e}")
     except ValueError as e:
@@ -87,6 +86,8 @@ def cloud_register(url, command):
         response = None
         if len(command_list) == 4:
             response = requests.post(url + '/cloudproxy/nodes/' + command_list[2] + '/' + command_list[3])
+            node_name = command_list[2]
+            pod_id = command_list[3]
         elif len(command_list) == 2 or len(command_list) == 3: #NODE_NAME or POD_ID not provided
             print("Please provide a node name and/or a pod name.")
         else: #too many arguments
@@ -148,7 +149,7 @@ def cloud_launch(url, command):
                 node_name = response_json["name"]
                 is_paused = response_json["is_paused"]
 
-                print("For pod with pod id ", pod_id, ", launching result: ", result, ", launched on node: ", node_name, " with port: " + port + " . If the pod is paused: " + is_paused)
+                print("For pod with pod id ", pod_id, ", launching result: ", result, ", launched on node: ", node_name, " with port: " + port + " . If the pod is paused: " + str(is_paused))
             
             else:
                 print("For pod with pod id ", pod_id, ", launching result: ", result)
@@ -173,7 +174,7 @@ def cloud_resume(url, command):
             response = requests.put(f'{url}/cloudproxy/resume/{pod_id}')
             response_json = response.json()
             result = response_json["result"]
-            print("For pod with pod id ", job_id, ", resuming result: ", result)
+            print("For pod with pod id ", pod_id, ", resuming result: ", result)
             
         elif len(command_list) == 2: #path to job not specified
             print("Please provide the pod id.")
@@ -195,7 +196,7 @@ def cloud_pause(url, command):
             response = requests.put(f'{url}/cloudproxy/pods/pause/{pod_id}')
             response_json = response.json()
             result = response_json["response"]
-            print("For pod with pod id ", job_id, ", pause result: ", result)
+            print("For pod with pod id ", pod_id, ", pause result: ", result)
             
         elif len(command_list) == 2: #path to job not specified
             print("Please provide the pod id.")
