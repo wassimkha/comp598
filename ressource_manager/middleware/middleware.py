@@ -234,7 +234,7 @@ def cloud_launch(pod_id):
 
     #if pod is paused, does not notify load balancer
     #if pod is up and running (!paused), load balancer notified
-        if is_paused == False:
+        if is_paused != False:
             add_command = "echo 'experimental-mode on; add server " + servers + "/'" + node_name + ' ' + ip_no_port + ':'  + port + '| sudo socat stdio /var/run/haproxy.sock'
             subprocess.run(add_command, shell=True, check=True)
 
@@ -260,7 +260,11 @@ def cloud_resume(pod_id):
     if online_nodes: #if not empty
         for node in online_nodes:
             name = node['name']
-            #TODO: name is a dictionary
+            port = node['port']
+            #add the node
+            add_command = "echo 'experimental-mode on; add server " + servers + "/'" + name + ' ' + ip_no_port + ':'  + port + '| sudo socat stdio /var/run/haproxy.sock'
+            subprocess.run(add_command, shell=True, check=True)
+
             #set these nodes to ready state for load balancer:
             enable_command = "echo 'experimental-mode on; set server " + servers + "/'" + name + ' state ready ' + '| sudo socat stdio /var/run/haproxy.sock'
             subprocess.run(enable_command, shell=True, check=True)
@@ -282,12 +286,17 @@ def cloud_pause(pod_id):
     online_nodes = response_json["online"]
 
     if online_nodes:
-    #TODO
+
         for node in online_nodes:
             name = node['name']
+            port = node['port']
             #put the node in maintenance state in HAProxy 
             disable_command = "echo 'experimental-mode on; set server " + servers + "/'" + name + ' state maint ' + '| sudo socat stdio /var/run/haproxy.sock'
             subprocess.run(disable_command, shell=True, check=True)
+
+            #remove thee nodes competely
+            rm_command = "echo 'experimental-mode on; del server " + servers + "/'" + name + '| sudo socat stdio /var/run/haproxy.sock'
+                subprocess.run(rm_command, shell=True, check=True)
 
         return jsonify({'response': 'successfully paused the pod'})
     else:
