@@ -88,13 +88,14 @@ def cloud_init():
     
     #call init on all three proxies
     response_light = requests.post(ip_proxy_light + '/cloudproxy', json = light_config)
-    response_medium = requests.post(ip_proxy_medium + '/cloudproxy', json = medium_config)
-    response_heavy = requests.post(ip_proxy_medium + '/cloudproxy', json = heavy_config)
+    #TODO: uncomment
+    #response_medium = requests.post(ip_proxy_medium + '/cloudproxy', json = medium_config)
+    #response_heavy = requests.post(ip_proxy_medium + '/cloudproxy', json = heavy_config)
     
     all_responses = {
         'light initialization': response_light.json(),
-        'medium initialization': response_medium.json(),
-        'heavy pod initialization': response_heavy.json()
+       # 'medium initialization': response_medium.json(),
+       # 'heavy pod initialization': response_heavy.json()
     }
 
     print(all_responses)
