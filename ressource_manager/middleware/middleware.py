@@ -24,8 +24,8 @@ ip_proxy_light = 'http://10.140.17.119:5000'
 ip_proxy_light_no_port = '10.140.17.119'
 
 #pod_id = 1
-ip_proxy_medium = 'http://10.140.17.255:5000'
-ip_proxy_medium_no_port = '10.140.17.255'
+ip_proxy_medium = 'http://10.140.17.120:5000'
+ip_proxy_medium_no_port = '10.140.17.120'
 
 #pod_id = 2
 ip_proxy_heavy = 'http://10.140.17.121:5000'
