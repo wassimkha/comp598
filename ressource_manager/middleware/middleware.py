@@ -64,26 +64,40 @@ def update_portList(pod_id):
 #Helper function 
 #servers, port_list = get_servername_and_portList(pod_id)
 
+#TODO: parse json file 
 @app.route('/cloudproxy', methods=["POST"]) 
 #initialize all 3 proxies
 def cloud_init():
     #re-set global vars 
+
     URL = '' 
     ip_no_port = ''
     port_numbers_light = {key: False for key in range(15000, 15009)} 
     port_numbers_medium = {key: False for key in range(15000, 15014)} 
     port_numbers_heavy = {key: False for key in range(15000, 15019)}
+
+    #json files for proxy config data
+    with open('jsons/light_pod.json', 'r') as f:
+        light_config = json.load(f)
+
+    with open('jsons/medium_pod.json', 'r') as f:
+        medium_config = json.load(f)
+
+    with open('jsons/heavy_pod.json', 'r') as f:
+        heavy_config = json.load(f)
     
     #call init on all three proxies
-    response_light = requests.post(ip_proxy_light + '/cloudproxy')
-    response_medium = requests.post(ip_proxy_medium + '/cloudproxy')
-    response_heavy = requests.post(ip_proxy_medium + '/cloudproxy')
+    response_light = requests.post(ip_proxy_light + '/cloudproxy', json = light_config)
+    response_medium = requests.post(ip_proxy_medium + '/cloudproxy', json = medium_config)
+    response_heavy = requests.post(ip_proxy_medium + '/cloudproxy', json = heavy_config)
     
     all_responses = {
-        'response_light': response_light.json(),
-        'response_medium': response_medium.json(),
-        'response_heavy': response_heavy.json()
+        'light initialization': response_light.json(),
+        'medium initialization': response_medium.json(),
+        'heavy pod initialization': response_heavy.json()
     }
+
+    print(all_responses)
 
     return jsonify(all_responses)
 
@@ -107,15 +121,14 @@ def cloud_register(node_name, pod_id):
     #loop through list of port numbers and in find an available one
     for key, value in port_list.items():
         if not value:
-            port_number = key
+            port_number = key #get the first port_number with value=false (avilable)
             break
 
     if port_number is not None:
         print(f"The first available port is {port_number}")
     else:
         print("All ports are occupied, reach capacity")
-        return jsonify({'result': 'failure',
-                        'reason:': 'All ports are occupied, reached capacity of pod'}) 
+        return jsonify({'result': 'Failure: all port numbers are occupied, reached capacity of pod'}) 
 
     #call proxy to register this node - its status set to NEW, not running
     response = requests.post(URL +'/cloudproxy/nodes/' + node_name + '/' + port_number)
@@ -123,15 +136,14 @@ def cloud_register(node_name, pod_id):
 
     result = response_json["result"]
     #set port_number as false = taken in the list
-
-    #TODO: change below based on proxy's output implementation
     
-    if result == 'node added': #successfully registerd
+    if result == 'Node added successfully.': #successfully registerd
         #set that port number as taken
         port_list[port_number] = False
         update_portList(pod_id) #update global dict for that proxy
         print("node was successfully registered and port number freed")
     
+    #return proxy's response
     return Response(response.content, content_type=response.headers['content-type'])
 
  #remove node on proxy side, then remove from load balancer
@@ -140,42 +152,45 @@ def cloud_rm(node_name):
     
     URL, ip_no_port, servers, port_list = get_serverPrams(pod_id)
 
-    response = requests.delete(URL +'/cloudproxy/nodes/<pod_id>' + node_name)
+    response = requests.delete(URL +'/cloudproxy/nodes/' + node_name)
     
     if(response.response_code == 200): #success
         #parse json, if the node is online (started a docker container), put to maintenance state then delete
         response_json = response.json()
         result = response_json["result"]
-        status = response_json["status"]
-        name = response_json['name']
+
+        if result != 'Node successfully deleted.':
+            #not deleted, return respone from proxy
+            return Response(response.content, content_type=response.headers['content-type'])
             
-        if (result == 'success'): # succesfully removed on proxy
-            port = response_json['port']
+        else: #succesfully deleted
+            port = response_json["port"]
+            was_online = response_json["was_online"]
+            is_paused = response_json["is_paused"]
                 
-            if status == 'ONLINE': #node is added in LB - started a docker container
+            if was_online == True: #node was online - remove from load balancer
+
                 #put the node in maintenance state using HAProxy socket
-                disable_command = "echo 'experimental-mode on; set server " + servers + "/'" + name + ' state maint ' + '| sudo socat stdio /var/run/haproxy.sock'
+                disable_command = "echo 'experimental-mode on; set server " + servers + "/'" + node_name + ' state maint ' + '| sudo socat stdio /var/run/haproxy.sock'
                 subprocess.run(disable_command, shell=True, check=True)
 
                 #remove node from load balancer
-                rm_command = "echo 'experimental-mode on; set server " + servers + "/'" + name + '| sudo socat stdio /var/run/haproxy.sock'
+                rm_command = "echo 'experimental-mode on; del server " + servers + "/'" + node_name + '| sudo socat stdio /var/run/haproxy.sock'
                 subprocess.run(rm_command, shell=True, check=True)
 
                 #set the port number as available for registration
                 if port in port_list:
-                    port_list[port] = False
+                    port_list[port] = True
                     update_portList(pod_id)
 
-            return jsonify({'response': 'success',
-                            'port': port, 
-                            'name': name,
-                            'status': status})
-    else: #faile to remove - return failure response
-        return Response(response.content, content_type=response.headers['content-type'])
+            #if removed node was hte last node of the pod, then pod is paused 
+            if is_paused == True:
+                cloud_pause(pod_id) 
+
+            return Response(response.content, content_type=response.headers['content-type'])
+            
     
-# picks up first node with 'NEW' and switch to 'ONLINE' = running a docker container
-#TODO: change in proxy AND cloud toolset 
-@app.route('/cloudproxy/jobs/<pod_id>', methods=["POST"])
+@app.route('/cloudproxy/launch/<pod_id>', methods=["POST"])
 def cloud_launch():
         
     URL, ip_no_port, servers, port_list = get_serverPrams(pod_id)
@@ -185,67 +200,65 @@ def cloud_launch():
 
     response_json = response.json()
     status = response_json["status"]
-    if status == 'success':
-        name = response_json['name']
-        port = response_json['port']
 
-        if status == 'ONLINE': #the node was switched from 'new' to 'online' by proxy successfully
-        #add to load balancer
-            add_command = "echo 'experimental-mode on; add server " + servers + "/'" + name + ' ' + ip_no_port + ':'  + port + '| sudo socat stdio /var/run/haproxy.sock'
-            subprocess.run(disable_command, shell=True, check=True)
+    if status == 'Successfully launched the job.':
+        node_name = response_json["name"]
+        port = response_json["port"]
+        is_paused = response_json["is_paused"]
 
-            #enable
-            enable_command = "echo 'experimental-mode on; set server " + servers + "/'" + name + ' state ready ' + '| sudo socat stdio /var/run/haproxy.sock'
-            subprocess.run(enable_command, shell=True, check=True)
+    #if pod is paused, does not notify load balancer
+    #if pod is up and running (!paused), load balancer notified
+    if is_paused == False:
+        add_command = "echo 'experimental-mode on; add server " + servers + "/'" + node_name + ' ' + ip_no_port + ':'  + port + '| sudo socat stdio /var/run/haproxy.sock'
+        subprocess.run(add_command, shell=True, check=True)
 
-            return jsonify({'response': 'success',
-                            'port': port, 
-                            'name': name,
-                            'status': status})
+        #enable
+        enable_command = "echo 'experimental-mode on; set server " + servers + "/'" + node_name + ' state ready ' + '| sudo socat stdio /var/run/haproxy.sock'
+        subprocess.run(enable_command, shell=True, check=True)
 
-    return jsonify({'response': 'failure'}) #TODO: add reason??
+    return Response(response.content, content_type=response.headers['content-type'])     
 
 #function to resume a specified pod_id (put all nodes in LB on pause)
-@app.route('/cloudproxy/pods/resume/<pod_id>', methods=["PUT"])
+@app.route('/cloudproxy/resume/<pod_id>', methods=["PUT"])
 def cloud_resume(pod_id):
     URL, ip_no_port, servers, port_list = get_serverPrams(pod_id) 
     # get all nodes_names from proxy with their status
-    response = requests.get(URL +'/cloudproxy/nodes')
-    nodes = response.json()
-    #TODO: fix based on proxy implementation
+    response = requests.put(URL +'/cloudproxy/resume')
 
-    #check if any nodes are online, if yes, then enable them (include in its configuration so that it can send traffic through to this node again)
-    online_nodes = [node for node in nodes if node['status'] == 'ONLINE']
+    #get all the nodes with ONLINE status
+    response_json = response.json()
+    online_nodes = response_json["online"]
     
-    if online_nodes:
+    if online_nodes: #if not empty
         for name in online_nodes:
-            #set these nodes to ready state:
+            #set these nodes to ready state for load balancer:
             enable_command = "echo 'experimental-mode on; set server " + servers + "/'" + name + ' state ready ' + '| sudo socat stdio /var/run/haproxy.sock'
             subprocess.run(enable_command, shell=True, check=True)
-        return jsonify({'response': 'successfully resumed the pod'})
+
+        return jsonify({'result': 'successfully resumed the pod'})
 
     else: #no nodes to be resumed
-        return jsonify({'response': 'no nodes to be resumed'})
+        return jsonify({'result': 'no nodes to be resumed, no online nodes'})
 
 # function to pause a specified pod_id - set online nodes to maintenance state - will not receive requests
 @app.route('/cloudproxy/pods/pause/<pod_id>', methods=["PUT"])
 def cloud_pause(pod_id):
     URL, ip_no_port = get_podURL(pod_id)
     # remove all nodes with the ONLINE status from the load balancer configuration
-    response = requests.get(URL +'/cloudproxy/nodes')
-    nodes = response.json()
-    online_nodes = [node for node in nodes if node['status'] == 'ONLINE']
+    response = requests.put(URL +'/cloudproxy/pause')
+    response_json = response.json()
+    online_nodes = response_json["online"]
 
     if online_nodes:
         for name in online_nodes:
             #put the node in maintenance state in HAProxy 
             disable_command = "echo 'experimental-mode on; set server " + servers + "/'" + name + ' state maint ' + '| sudo socat stdio /var/run/haproxy.sock'
             subprocess.run(disable_command, shell=True, check=True)
+
         return jsonify({'response': 'successfully paused the pod'})
     else:
         # if no online nodes found, return an error response
-        return  jsonify({'response': 'no nodes to be resumed'})
-
+        return  jsonify({'response': 'empty pod paused'})
 
 
 # ########TODO: below commands not tested 
@@ -297,3 +310,4 @@ def cloud_pause(pod_id):
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5001, debug=True)
+
