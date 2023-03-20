@@ -9,7 +9,7 @@ def cloud_init (url):
     try: 
         response = requests.post(url + '/cloudproxy')
         print(response.content)
-        response_json = response.json()
+        #response_json = response.json()
     except requests.exceptions.RequestException as e:
         print(f"An error occurred: {e}")
     except ValueError as e:

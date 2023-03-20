@@ -86,6 +86,7 @@ def update_portList(pod_id):
 def cloud_init():
     #re-set global vars 
     global URL, ip_no_port, servers, port_list
+    global port_numbers_light, port_numbers_medium, port_numbers_heavy
     URL = '' 
     ip_no_port = ''
     port_numbers_light = {key: False for key in range(15000, 15009)} 
@@ -105,20 +106,20 @@ def cloud_init():
         print(heavy_config)
 
     #call init on all three proxies
-   # response_light = requests.post(ip_proxy_light + '/cloudproxy', json=light_config)
-    #response_medium = requests.post(ip_proxy_medium + '/cloudproxy', json = medium_config)
+    response_light = requests.post(ip_proxy_light + '/cloudproxy', json=light_config)
+    response_medium = requests.post(ip_proxy_medium + '/cloudproxy', json = medium_config)
     response_heavy = requests.post(ip_proxy_heavy + '/cloudproxy', json = heavy_config)
     
-  #  all_responses = {
-   #     'light initialization': response_light.json(),
-       # 'medium initialization': response_medium.json(),
-       # 'heavy pod initialization': response_heavy.json()
-   # }
-    print(response_heavy.content)
+    all_responses = {
+        'light initialization': response_light.json(),
+        'medium initialization': response_medium.json(),
+        'heavy pod initialization': response_heavy.json()
+    }
+    print(all_responses)
     #print(all_responses)
 
-    #return jsonify({"result":"success"})
-    return Response(response_heavy.content, content_type=response_heavy.headers['content-type'])
+    return jsonify(all_response)
+    #return Response(response_heavy.content, content_type=response_heavy.headers['content-type'])
 
 #left unimplemented for the project - only cloud toolset returns a message
 @app.route('/cloudproxy/pods/<pod_name>', methods=["POST"]) 
