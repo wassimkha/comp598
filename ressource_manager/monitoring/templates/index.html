@@ -50,19 +50,23 @@
   <body>
     <h2>Cloud Management System</h2>
     <h3>Cloud Pods</h3>
-    <h5><a href="/cloud/job/ls">Access all jobs</a></h5>
+    <!-- <h5><a href="/cloud/job/ls">Access all jobs</a></h5> -->
     <table>
       <tr>
         <th>ID</th>
         <th>Name</th>
         <th>Number of Nodes</th>
+        <th>Max Nodes</th>
+        <th>Paused</th>
         <th>See The Nodes</th>
       </tr>
       {% for pod in cloud_pods %}
       <tr>
         <td>{{ pod.id }}</td>
         <td>{{ pod.name }}</td>
-        <td>{{ pod.nodes }}</td>
+        <td>{{ pod.num_nodes }}</td>
+        <td>{{ pod.max_nodes }}</td>
+        <td>{{ pod.paused }}</td>
         <td><a href="/cloud/node/ls/{{ pod.id }}">nodes</a></td>
       </tr>
       {% endfor %}

@@ -10,7 +10,22 @@ app = Flask(__name__)
 
 cURL = pycurl.Curl()
 
-URL = 'http://10.140.17.121:6000'
+URL = 'http://10.140.17.121:5000'
+
+#pod_id = 0 
+ip_proxy_light = 'http://10.140.17.119:5000' 
+
+#pod_id = 1
+ip_proxy_medium = 'http://10.140.17.120:5000'
+
+#pod_id = 2
+ip_proxy_heavy = 'http://10.140.17.121:5000'
+
+id_to_proxy_ip = {
+    0: ip_proxy_light,
+    1: ip_proxy_medium,
+    2: ip_proxy_heavy
+}
 
 # Define fake data for the cloud system
 
@@ -55,15 +70,37 @@ cloud_pods, cloud_nodes, cloud_jobs, node_logs, job_logs = None, None, None, Non
 # Implement the RESTful API
 @app.route("/")
 def index():
-    pods_json = requests.get(URL + '/cloudproxy/pods').json()
-    pods = pods_json['result']
+    # pods_json = requests.get(URL + '/cloudproxy/pods').json()
+    # pods = pods_json['result']
+    pods_json_light = requests.get(ip_proxy_light + '/cloudproxy/pods').json()
+    pods_json_light_exist = "pod" in pods_json_light
+
+    pods_json_medium = requests.get(ip_proxy_medium + '/cloudproxy/pods').json()
+    pods_json_medium_exist = "pod" in pods_json_medium
+
+    pods_json_heavy = requests.get(ip_proxy_heavy + '/cloudproxy/pods').json()
+    pods_json_heavy_exist = "pod" in pods_json_heavy
+
     cld_pods = []
-    for pod in pods:
-        cld_pods.append({
-            'id': pod['id'],
-            'name': pod['name'],
-            'nodes': len(pod['nodes'])
-        })
+
+    if pods_json_light_exist:
+        pods_json_light = pods_json_light["pod"]
+        pods_json_light["id"] = 0
+        pods_json_light["name"] = "Light"
+        pods_json_light["num_nodes"] = len(pods_json_light["nodes"])
+        cld_pods.append(pods_json_light)
+    if pods_json_medium_exist:
+        pods_json_medium = pods_json_medium["pod"]
+        pods_json_medium["id"] = 1
+        pods_json_medium["name"] = "Medium"
+        pods_json_medium["num_nodes"] = len(pods_json_medium["nodes"])
+        cld_pods.append(pods_json_medium)
+    if pods_json_heavy:
+        pods_json_heavy = pods_json_heavy["pod"]
+        pods_json_heavy["id"] = 2
+        pods_json_heavy["name"] = "Heavy"
+        pods_json_heavy["num_nodes"] = len(pods_json_heavy["nodes"])
+        cld_pods.append(pods_json_heavy)
 
     return render_template("index.html", cloud_pods=cld_pods)
 
@@ -73,15 +110,19 @@ def list_pods():
 
 @app.route("/cloud/node/ls/<int:pod_id>", methods=["GET"])
 def list_nodes(pod_id=None):
-    pods_json = requests.get(URL + '/cloudproxy/pods').json()
-    pods = pods_json['result']
+    url = id_to_proxy_ip[pod_id]
+    # print("got pod id as", pod_id, url)
+    pods_json = requests.get(url + '/cloudproxy/pods').json()
+    if "pod" in pods_json:
+         pods_json = pods_json["pod"]
+    # print("got pods json as", pods_json)
+    # pods = pods_json['result']
     nodes = []
-
-    for pod in pods:
-        if int(pod['id']) == int(pod_id):
-            nodes = pod['nodes']
-    
+    if pods_json and "nodes" in pods_json:
+        nodes = pods_json["nodes"]
+    # print("got nodes as", nodes)
     return render_template("cloud_nodes.html", nodes=nodes, pod_id=pod_id)
+
 @app.route("/cloud/job/ls", methods=["GET"])
 @app.route("/cloud/job/ls/<node_id>", methods=["GET"])
 def list_jobs(node_id=None):
@@ -103,9 +144,10 @@ def get_job_log(job_id):
     else:
         return "Job not found", 404
 
-@app.route("/cloud/log/node/<node_id>", methods=["GET"])
-def get_node_log(node_id):
-    node_log = requests.get(URL + f'/cloudproxy/nodes/{node_id}/logs').json()
+@app.route("/cloud/log/node/<node_id>/<pod_id>", methods=["GET"])
+def get_node_log(node_id, pod_id):
+    url = id_to_proxy_ip[int(pod_id)]
+    node_log = requests.get(url + f'/cloudproxy/jobs/{node_id}/log').content.decode('utf-8').splitlines()
     print("got log as", node_log, file=sys.stdout)
     if node_log:
         return render_template("node_logs.html", logs=node_log)
@@ -114,34 +156,7 @@ def get_node_log(node_id):
 
 #flask app created
 if __name__ == '__main__':
-    pods_json = requests.get(URL + '/cloudproxy/pods').json()
-    
-    pods = [
-    {"id": 1, "nodes": [
-        {"name": "Node1", "status": "Idle"},
-        {"name": "Node2", "status": "Running"},
-        {"name": "Node3", "status": "Idle"}
-    ]},
-    {"id": 2, "nodes": [
-        {"name": "Node4", "status": "Idle"},
-        {"name": "Node5", "status": "Running"}
-    ]}
-    ]
+    # pods_json = requests.get(URL + '/cloudproxy/pods').json()
 
-
-
-    jobs = [
-    {"id": 1, "path": "Job1", "status": "Running", "node": "Node2"},
-    {"id": 2, "path": "Job2", "status": "Completed", "node": "Node5"},
-    {"id": 3, "path": "Job3", "status": "Registered", "node": None}
-    ]
-    logs = [
-        {"message": "Node1 log", "node_id": 1, "job_id": None},
-        {"message": "Node2 log - Job1 log", "node_id": 2, "job_id": 1},
-        {"message": "Node3 log", "node_id": 3, "job_id": None},
-        {"message": "Node4 log", "node_id": 4, "job_id": None},
-        {"message": "Node5 log - Job2 log", "node_id": 5, "job_id": 2},
-    ]
-
-    cloud_pods, cloud_nodes, cloud_jobs, node_logs, job_logs = transform_data(pods, jobs, logs)
+    cloud_pods, cloud_nodes, cloud_jobs, node_logs, job_logs = [], [], [], [], []
     app.run(host="0.0.0.0", port=3000, debug=True)

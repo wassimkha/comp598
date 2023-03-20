@@ -32,8 +32,9 @@
         <th>Name</th>
         <th>Pod ID</th>
         <th>Status</th>
+        <th>Port</th>
         <th>Logs</th>
-        <th>Jobs</th>
+        <!-- <th>Jobs</th> -->
       </tr>
       {% for node in nodes %}
       <tr>
@@ -41,8 +42,9 @@
         <td>{{ node.name }}</td>
         <td>{{ pod_id }}</td>
         <td>{{ node.status }}</td>
-        <td><a href="/cloud/log/node/{{ node.id }}">logs</a></td>
-        <td><a href="/cloud/job/ls/{{ node.id }}">jobs</a></td>
+        <td>{{ node.port }}</td>
+        <td><a href="/cloud/log/node/{{ node.id }}/{{ pod_id }}">logs</a></td>
+        <!-- <td><a href="/cloud/job/ls/{{ node.id }}">jobs</a></td> -->
       </tr>
       {% endfor %}
     </table>
