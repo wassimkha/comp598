@@ -118,7 +118,7 @@ def cloud_init():
     print(all_responses)
     #print(all_responses)
 
-    return jsonify(all_response)
+    return jsonify(all_responses)
     #return Response(response_heavy.content, content_type=response_heavy.headers['content-type'])
 
 #left unimplemented for the project - only cloud toolset returns a message
