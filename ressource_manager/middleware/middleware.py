@@ -1,3 +1,4 @@
+import json as js
 from flask import Flask, Response, render_template, request, jsonify
 import pycurl
 import sys
@@ -11,16 +12,22 @@ cURL = pycurl.Curl()
 app = Flask(__name__)
 
 #----------global var------------
+
+global URL, ip_no_port, servers, port_list
+global ip_proxy_light, ip_proxy_light_no_port, port_numbers_light
+global ip_proxy_medium, ip_proxy_medium_no_port, port_numbers_medium
+global ip_proxy_heavy, ip_proxy_heavy_no_port, port_numbers_heavy
+
 #pod_id = 0 
-ip_proxy_light = 'http://10.140.17.119:6000' 
+ip_proxy_light = 'http://10.140.17.119:5000' 
 ip_proxy_light_no_port = '10.140.17.119'
 
 #pod_id = 1
-ip_proxy_medium = 'http://10.140.17.255:6000'
+ip_proxy_medium = 'http://10.140.17.255:5000'
 ip_proxy_medium_no_port = '10.140.17.255'
 
 #pod_id = 2
-ip_proxy_heavy = 'http://10.140.17.121:6000'
+ip_proxy_heavy = 'http://10.140.17.121:5000'
 ip_proxy_heavy_no_port = '10.140.17.121'
 
 
@@ -35,29 +42,37 @@ port_numbers_heavy = {key: False for key in range(15000, 15019)} #20
 
 #Helper function to get URL based on specified pod
 def get_serverPrams(pod_id):
-    if pod_id == 0:
+    print("in the function get_serverPrams")
+    global URL, ip_no_port, servers, port_list
+    global ip_proxy_light, ip_proxy_light_no_port, port_numbers_light
+    global ip_proxy_medium, ip_proxy_medium_no_port, port_numbers_medium
+    global ip_proxy_heavy, ip_proxy_heavy_no_port, port_numbers_heavy
+    if pod_id == '0':
         URL = ip_proxy_light
         ip_no_port = ip_proxy_light_no_port
         servers = 'light_servers'
         port_list = port_numbers_light
-    elif pod_id == 1:
+    elif pod_id == '1':
         URL = ip_proxy_medium
         ip_no_port = ip_proxy_medium_no_port
-        servers == 'medium_servers'
+        servers = 'medium_servers'
         port_list = port_numbers_medium
-    elif pod_id == 2:
+    elif pod_id == '2':
+        print("here")
+        print(port_numbers_heavy)
         URL = ip_proxy_heavy
         ip_no_port = ip_proxy_heavy_no_port
         severs = 'heavy_servers'
         port_list = port_numbers_heavy
-    return URL, ip_no_port
+    #return URL, ip_no_port, servers, port_list
 
 def update_portList(pod_id):
-    if pod_id == 0:
+    global port_numbers_light, port_numbers_medium, port_numbers_heavy, port_list
+    if pod_id == '0':
         port_numbers_light = port_list
-    elif pod_id == 1:
+    elif pod_id == '1':
         port_numbers_medium = port_list
-    elif pod_id == 2:
+    elif pod_id == '2':
         port_numbers_heavy = port_list
 
 #URL, ip_no_port, servers, port_list = get_serverPrams(pod_id)
@@ -69,7 +84,7 @@ def update_portList(pod_id):
 #initialize all 3 proxies
 def cloud_init():
     #re-set global vars 
-
+    global URL, ip_no_port, servers, port_list
     URL = '' 
     ip_no_port = ''
     port_numbers_light = {key: False for key in range(15000, 15009)} 
@@ -78,29 +93,31 @@ def cloud_init():
 
     #json files for proxy config data
     with open('jsons/light_pod.json', 'r') as f:
-        light_config = json.load(f)
+        light_config = js.load(f)
+#        print(light_config)
 
     with open('jsons/medium_pod.json', 'r') as f:
-        medium_config = json.load(f)
+        medium_config = js.load(f)
 
     with open('jsons/heavy_pod.json', 'r') as f:
-        heavy_config = json.load(f)
-    
+        heavy_config = js.load(f)
+        print(heavy_config)
+
     #call init on all three proxies
-    response_light = requests.post(ip_proxy_light + '/cloudproxy', json = light_config)
-    #TODO: uncomment
+   # response_light = requests.post(ip_proxy_light + '/cloudproxy', json=light_config)
     #response_medium = requests.post(ip_proxy_medium + '/cloudproxy', json = medium_config)
-    #response_heavy = requests.post(ip_proxy_medium + '/cloudproxy', json = heavy_config)
+    response_heavy = requests.post(ip_proxy_heavy + '/cloudproxy', json = heavy_config)
     
-    all_responses = {
-        'light initialization': response_light.json(),
+  #  all_responses = {
+   #     'light initialization': response_light.json(),
        # 'medium initialization': response_medium.json(),
        # 'heavy pod initialization': response_heavy.json()
-    }
+   # }
+    print(response_heavy.content)
+    #print(all_responses)
 
-    print(all_responses)
-
-    return jsonify(all_responses)
+    #return jsonify({"result":"success"})
+    return Response(response_heavy.content, content_type=response_heavy.headers['content-type'])
 
 #left unimplemented for the project - only cloud toolset returns a message
 @app.route('/cloudproxy/pods/<pod_name>', methods=["POST"]) 
@@ -116,12 +133,14 @@ def cloud_pod_rm(pod_name):
 # route to register new node with name and pod_id provided - provide proxy with a port number
 @app.route('/cloudproxy/nodes/<node_name>/<pod_id>', methods=["POST"])
 def cloud_register(node_name, pod_id):
-    URL, ip_no_port, servers, port_list = get_serverPrams(pod_id)
+    global URL, ip_no_port, servers, port_list
+    #URL, ip_no_port, servers, port_list = get_serverPrams(pod_id)
+    get_serverPrams(pod_id)
     port_number = None
 
     #loop through list of port numbers and in find an available one
     for key, value in port_list.items():
-        if not value:
+        if value == False :
             port_number = key #get the first port_number with value=false (avilable)
             break
 
@@ -132,7 +151,8 @@ def cloud_register(node_name, pod_id):
         return jsonify({'result': 'Failure: all port numbers are occupied, reached capacity of pod'}) 
 
     #call proxy to register this node - its status set to NEW, not running
-    response = requests.post(URL +'/cloudproxy/nodes/' + node_name + '/' + port_number)
+    port = str(port_number)
+    response = requests.post(URL +'/cloudproxy/nodes/' + node_name + '/' + port)
     response_json = response.json()
 
     result = response_json["result"]
@@ -140,22 +160,23 @@ def cloud_register(node_name, pod_id):
     
     if result == 'Node added successfully.': #successfully registerd
         #set that port number as taken
-        port_list[port_number] = False
+        port_list[port_number] = True
         update_portList(pod_id) #update global dict for that proxy
-        print("node was successfully registered and port number freed")
+        print("node was successfully registered and port number occupied")
     
     #return proxy's response
     return Response(response.content, content_type=response.headers['content-type'])
 
  #remove node on proxy side, then remove from load balancer
 @app.route('/cloudproxy/nodes/<node_name>/<pod_id>', methods=["DELETE"])
-def cloud_rm(node_name):
+def cloud_rm(node_name, pod_id):
     
-    URL, ip_no_port, servers, port_list = get_serverPrams(pod_id)
-
+    global URL, ip_no_port, servers, port_list
+    get_serverPrams(pod_id)
     response = requests.delete(URL +'/cloudproxy/nodes/' + node_name)
     
-    if(response.response_code == 200): #success
+    #TODO: remove this if true later
+    if True: #success
         #parse json, if the node is online (started a docker container), put to maintenance state then delete
         response_json = response.json()
         result = response_json["result"]
@@ -192,10 +213,10 @@ def cloud_rm(node_name):
             
     
 @app.route('/cloudproxy/launch/<pod_id>', methods=["POST"])
-def cloud_launch():
+def cloud_launch(pod_id):
         
-    URL, ip_no_port, servers, port_list = get_serverPrams(pod_id)
-
+    global URL, ip_no_port, servers, port_list
+    get_serverPrams(pod_id)
     #proxy will find first node with 'NEW' and set to 'ONLINE' 
     response = requests.post(URL + '/cloudproxy/launch')
 
@@ -222,7 +243,8 @@ def cloud_launch():
 #function to resume a specified pod_id (put all nodes in LB on pause)
 @app.route('/cloudproxy/resume/<pod_id>', methods=["PUT"])
 def cloud_resume(pod_id):
-    URL, ip_no_port, servers, port_list = get_serverPrams(pod_id) 
+    global URL, ip_no_port, servers, port_list
+    get_serverPrams(pod_id)
     # get all nodes_names from proxy with their status
     response = requests.put(URL +'/cloudproxy/resume')
 
@@ -244,7 +266,9 @@ def cloud_resume(pod_id):
 # function to pause a specified pod_id - set online nodes to maintenance state - will not receive requests
 @app.route('/cloudproxy/pods/pause/<pod_id>', methods=["PUT"])
 def cloud_pause(pod_id):
-    URL, ip_no_port = get_podURL(pod_id)
+    
+    global URL, ip_no_port, servers, port_list
+    get_serverPrams(pod_id)
     # remove all nodes with the ONLINE status from the load balancer configuration
     response = requests.put(URL +'/cloudproxy/pause')
     response_json = response.json()
