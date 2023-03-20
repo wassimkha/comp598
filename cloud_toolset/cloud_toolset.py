@@ -8,6 +8,7 @@ import subprocess
 def cloud_init (url):
     try: 
         response = requests.post(url + '/cloudproxy')
+        print(response.content)
         response_json = response.json()
         print(response_json)
     except requests.exceptions.RequestException as e:
@@ -399,7 +400,7 @@ def cloud_watch():
 def main():
     #RM url given as argument
     #rm_url = sys.argv[1]
-    rm_url = 'http://10.140.17.120:5000'
+    rm_url = 'http://10.140.17.120:5001'
     while(1): #loop while taking input from client
         command = input('$ ')
         if command == 'cloud init':
