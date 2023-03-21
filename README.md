@@ -72,6 +72,9 @@ After making changes:
 - to watch status
 `watch 'echo "show stat" | sudo socat stdio /var/run/haproxy.sock | cut -d "," -f 1-2,5-10,34-36 | column -s, -t'`
 
+- look at logs 
+`sudo journalctl -u haproxy.service --since today --no-pager`
+
 - Send request 
 `curl localhost:5002/medium` (change the ending)
 
