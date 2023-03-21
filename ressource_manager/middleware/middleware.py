@@ -323,6 +323,21 @@ def cloud_pause(pod_id):
         # if no online nodes found, return an error response
         return  jsonify({'response': 'empty pod paused'})
 
+# route to get the logs from node
+@app.route('/cloudproxy/loadbalencer/watch', methods=["GET"])
+def loadbalencer_watch():
+
+    cmd = 'echo "show stat" | sudo socat stdio /var/run/haproxy.sock | cut -d "," -f 1-2,5-10,34-36 | column -s, -t'
+    process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    output = ''
+    while True:
+        line = process.stdout.readline().decode()
+        if not line:
+            break
+        output += line
+
+    return  jsonify({'response': output})
+
 
 # ########TODO: below commands not tested 
 # #route to abort a job
