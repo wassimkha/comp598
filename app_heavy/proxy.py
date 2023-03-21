@@ -184,7 +184,7 @@ def cloud_init():
                    'max_nodes': MAX_NODES,
                    'nodes': []}
             # a cluster is a set of pods => this is a cluster so nothing else to do here
-            result = f'Successfully initialized {POD_TYPE} pod.'
+            result = 'Successfully initialized pod.'
         print(result)
         return jsonify({'result': result})
 

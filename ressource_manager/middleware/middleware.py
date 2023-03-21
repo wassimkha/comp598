@@ -104,12 +104,32 @@ def cloud_init():
 
     with open('jsons/heavy_pod.json', 'r') as f:
         heavy_config = js.load(f)
+
         print(heavy_config)
 
     #call init on all three proxies
     response_light = requests.post(ip_proxy_light + '/cloudproxy', json=light_config)
+    responseLight_json = response_light.json()
+    result_light = responseLight_json["result"]
+    if result_light == 'Successfully initialized pod.':
+        restart = 'sudo systemctl restart haproxy'
+        subprocess.run(restart, shell=True, check=True)
+
+
+
     response_medium = requests.post(ip_proxy_medium + '/cloudproxy', json = medium_config)
+    responseMedium_json = response_medium.json()
+    result_medium = responseMedium_json["result"]
+    if result_medium == 'Successfully initialized pod.':
+        restart = 'sudo systemctl restart haproxy'
+        subprocess.run(restart, shell=True, check=True)
+
     response_heavy = requests.post(ip_proxy_heavy + '/cloudproxy', json = heavy_config)
+    responseHeavy_json = response_heavy.json()
+    result_heavy = responseHeavy_json["result"]
+    if result_heavy == 'Successfully initialized pod.':
+        restart = 'sudo systemctl restart haproxy'
+        subprocess.run(restart, shell=True, check=True)
     
     all_responses = {
         'light initialization': response_light.json(),
