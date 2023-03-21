@@ -330,13 +330,15 @@ def loadbalencer_watch():
     cmd = 'echo "show stat" | sudo socat stdio /var/run/haproxy.sock | cut -d "," -f 1-2,5-10,34-36 | column -s, -t'
     process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     output = ''
+    array = []
     while True:
         line = process.stdout.readline().decode()
         if not line:
             break
         output += line
+        array.append(line.replace(" ", "|"))
 
-    return  jsonify({'response': output})
+    return  jsonify({'response': output, 'array': array})
 
 
 # ########TODO: below commands not tested 

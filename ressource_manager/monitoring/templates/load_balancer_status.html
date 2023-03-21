@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Cloud LB</title>
+    <meta http-equiv="refresh" content="1" />
+    <style>
+      /* Add some basic styles to make the page look better */
+      body {
+        font-family: Arial, sans-serif;
+        padding: 20px;
+      }
+      h3 {
+        text-align: center;
+        margin-bottom: 30px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+      }
+      th,
+      td {
+        border: 1px solid #ddd;
+        padding: 8px;
+        text-align: left;
+      }
+      th {
+        background-color: #ddd;
+      }
+      .center {
+        margin: 0 auto;
+        width: 50%;
+        }
+    </style>
+  </head>
+  <body>
+    <h3>Cloud LB</h3>
+    <br>
+    <div class="center">
+    {% for info in infos %}
+    <p>{{ info }}</p>
+    {% endfor %}
+    </div>
+  </body>
+</html>

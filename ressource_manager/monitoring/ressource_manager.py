@@ -136,6 +136,19 @@ def list_jobs(node_id=None):
 
     return render_template("cloud_jobs.html", jobs=jobs)
 
+@app.route("/cloud/lb", methods=["GET"])
+def watch_lb():
+    rm_url = 'http://10.140.17.120:5001'
+    response = requests.get(f'{rm_url}/cloudproxy/loadbalencer/watch').json()
+    arr = response["array"]
+    array = [arr.pop(0).replace("|", " ")]
+    for line in arr:
+        array.append(line.replace("|", "|"))
+    if response:
+        return render_template("load_balancer_status.html", infos=array)
+    else:
+        return "LB not found", 404
+
 @app.route("/cloud/job/log/<job_id>", methods=["GET"])
 def get_job_log(job_id):
     job_log = requests.get(URL + f'/cloudproxy/jobs/{job_id}/log').json()
