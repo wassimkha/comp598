@@ -198,7 +198,7 @@ def cloud_rm(node_name, pod_id):
             was_online = response_json["was_online"]
             is_paused = response_json["is_paused"]
                 
-            if was_online == True: #node was online - remove from load balancer
+            if was_online : #node was online - remove from load balancer
 
                 #put the node in maintenance state using HAProxy socket
                 #working shell command:
@@ -221,7 +221,7 @@ def cloud_rm(node_name, pod_id):
                 #     update_portList(pod_id)
 
             #if removed node was hte last node of the pod, then pod is paused 
-            if is_paused == True:
+            if is_paused :
                 cloud_pause(pod_id) 
 
             return Response(response.content, content_type=response.headers['content-type'])
@@ -245,7 +245,7 @@ def cloud_launch(pod_id):
 
     #if pod is paused, does not notify load balancer
     #if pod is up and running (!paused), load balancer notified
-        if is_paused != False:
+        if not is_paused:
             #echo "experimental-mode on; add server medium_servers/server1 0.0.0.0:15000" | sudo socat stdio /var/run/haproxy.sock
             add_command = f'echo "experimental-mode on; add server {servers}/{node_name} {ip_no_port}:{port}" | sudo socat stdio /var/run/haproxy.sock'
             print(add_command)
