@@ -16,6 +16,7 @@ pod_id = 2
 
 proxies running on 5000 of the 3 VMs
 middleware running on port 5001 (VM2)
+haproxy listening on 5001
 
 load balancer listening on requests sent to 10.140.17.255 (vm2): 5002 and depending on ending of curl (ex. /heavy), request forward to respective node using specified balance options
 
@@ -25,20 +26,21 @@ load balancer listening on requests sent to 10.140.17.255 (vm2): 5002 and depend
 
 **instruction**
 VM 1: 
-```nohup python3 /home/comp598-user/comp598/app_light/proxy.py &```
+```nohup sudo python3 /home/comp598-user/comp598/app_light/proxy.py &```
 
-```cd /home/comp598-user/comp598/cloud_toolset/cloud_toolset.py```
+```cd /home/comp598-user/comp598/cloud_toolset/cloud_toolset```
 
 ```python3 cloud_toolset.py```
 
 VM 2:
-```nohup python3 /home/comp598-user/comp598/app_medium/proxy.py &```
+```nohup sudo python3 /home/comp598-user/comp598/app_medium/proxy.py &```
+
 ```python3 /home/comp598-user/comp598/ressource_manager/middleware/middleware.py```
 
 VM 3: 
-```nohup python3 /home/comp598-user/comp598/app_heavy/proxy.py &```
+```nohup sudo python3 /home/comp598-user/comp598/app_heavy/proxy.py &```
 
-**commands for haproxy**
+**commands for haproxy on VM2**
 
 to see haproxy version:  
 `haproxy -v`
@@ -55,3 +57,31 @@ After making changes:
 
 - if restart failed, to see failure:  
 `haproxy -f /etc/haproxy/haproxy.cfg -db`
+
+---------------------------------------------
+
+- EXAMPLE server runing on port 15000
+`python3 -m http.server 15000 --bind 0.0.0.0`
+
+- to watch status
+`watch 'echo "show stat" | sudo socat stdio /var/run/haproxy.sock | cut -d "," -f 1-2,5-10,34-36 | column -s, -t'`
+
+- Send request 
+`curl localhost:5002/medium` (change the ending)
+
+
+- adding server dynamically (example)
+`echo "experimental-mode on; add server medium_servers/server1 0.0.0.0:15000" | sudo socat stdio /var/run/haproxy.sock`
+
+- enabling the server after adding
+`echo "experimental-mode on; set server medium_servers/server1 state ready" | sudo socat stdio /var/run/haproxy.sock`
+
+- disabling the server before deleting
+`echo "experimental-mode on; set server medium_servers/server1 state maint" | sudo socat stdio /var/run/haproxy.sock`
+
+- deleting the server completely
+`echo "experimental-mode on; del server medium_servers/server1" | sudo socat stdio /var/run/haproxy.sock`
+
+
+
+
