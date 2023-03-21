@@ -2,6 +2,7 @@ import sys
 import os
 import requests
 import subprocess
+import time
 
 #-----------CLI Post Commands--------------------------------------------------------
 #1. cloud init - initialize main resource cluster
@@ -209,17 +210,27 @@ def cloud_pause(url, command):
     except ValueError as e:
         print(f"An error occurred while parsing the response: {e}")
 
-def cloud_watch():
-    #cmd = "watch 'echo \"show stat\" | sudo socat stdio /var/run/haproxy.sock | cut -d \",\" -f 1-2,5-10,34-36 | column -s, -t'"
-    cmd = "echo \"command\""
-    process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    while True:
-        output = process.stdout.readline().decode()
-        if output == '' and process.poll() is not None:
-            break
-        if output:
-            print(output, end='', flush=True)
+def cloud_watch(url, command):
+    try:
+        command_list = command.split()
+        if len(command_list) == 3: # cloud + launch + seconds
+            seconds = command_list[2]
+            print(f"watching the load balancer incoming requests for {seconds}s")
+            for i in range(int(seconds)):
+                response = requests.get(f'{url}/cloudproxy/loadbalencer/watch').json()
+                print(f'{response["response"]}')
+                time.sleep(1)
+            
+        elif len(command_list) == 2: #no time specified
+            print("Please provide the time to watch the comand for.")
+        else: #too many arguments
+            print("Invalid number of arguments.")
 
+    except requests.exceptions.RequestException as e:
+        print(f"An error occurred while sending the request: {e}")
+        
+    except ValueError as e:
+        print(f"An error occurred while parsing the response: {e}")
 
 
 # #7. cloud abort JOB_ID
@@ -422,7 +433,7 @@ def main():
         elif command.startswith('cloud pause'):
             cloud_pause(rm_url, command)
         elif command.startswith('cloud watch'):
-            cloud_watch()
+            cloud_watch(rm_url, command)
 
         # elif command.startswith ('cloud abort'):
         #     cloud_abort(rm_url, command)
