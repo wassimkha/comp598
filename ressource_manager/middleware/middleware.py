@@ -273,7 +273,7 @@ def cloud_resume(pod_id):
             subprocess.run(add_command, shell=True, check=True)
 
             #set these nodes to ready state for load balancer:
-            enable_command = "echo 'experimental-mode on; set server " + servers + "/'" + name + ' state ready ' + '| sudo socat stdio /var/run/haproxy.sock'
+            enable_command = "echo 'experimental-mode on; set server " + servers + "/'" + node_name + ' state ready ' + '| sudo socat stdio /var/run/haproxy.sock'
             subprocess.run(enable_command, shell=True, check=True)
 
         return jsonify({'result': 'successfully resumed the pod'})
@@ -295,7 +295,7 @@ def cloud_pause(pod_id):
     if online_nodes:
 
         for node in online_nodes:
-            name = node['name']
+            node_name = node['name']
             port = node['port']
             #put the node in maintenance state in HAProxy 
             disable_command = f'echo "experimental-mode on; set server {servers}/{node_name} state maint" | sudo socat stdio /var/run/haproxy.sock'
