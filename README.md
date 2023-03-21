@@ -88,6 +88,7 @@ After making changes:
 - deleting the server completely
 `echo "experimental-mode on; del server medium_servers/server1" | sudo socat stdio /var/run/haproxy.sock`
 
+- see server status (using haproxy CLI)
+`sudo socat stdio /var/run/haproxy.sock`
 
-
-
+`show servers state`
