@@ -266,7 +266,7 @@ def cloud_resume(pod_id):
     print(online_nodes)
     if online_nodes: #if not empty
         for node in online_nodes:
-            name = node['name']
+            node_name = node['name']
             port = node['port']
             #add the node
             add_command = f'echo "experimental-mode on; add server {servers}/{node_name} {ip_no_port}:{port}" | sudo socat stdio /var/run/haproxy.sock'
