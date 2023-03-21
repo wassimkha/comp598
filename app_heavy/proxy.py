@@ -161,6 +161,10 @@ def cloud_init():
             result = 'Failure: no Dockerfile found in the working directory.'
         else:
             initialized = True
+            # we assume for the scope of this assignment that
+            # there is a new cluster for each run of the script
+            for container in client.containers.list():
+                container.remove(v=True, force=True)
             # constant values related to the proxy type
             POD_TYPE = request_data['type']
             JOB_TYPE = request_data['node_type']
