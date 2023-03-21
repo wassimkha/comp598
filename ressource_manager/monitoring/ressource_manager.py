@@ -143,7 +143,7 @@ def watch_lb():
     arr = response["array"]
     array = [arr.pop(0).replace("|", " ")]
     for line in arr:
-        array.append(line.replace("|", "|"))
+        array.append(line)
     if response:
         return render_template("load_balancer_status.html", infos=array)
     else:
