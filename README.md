@@ -58,6 +58,12 @@ After making changes:
 - if restart failed, to see failure:  
 `haproxy -f /etc/haproxy/haproxy.cfg -db`
 
+- see running or not
+`sudo systemctl status haproxy`
+
+- see ports taken
+`sudo netstat -tnlp`
+
 ---------------------------------------------
 
 - EXAMPLE server runing on port 15000
