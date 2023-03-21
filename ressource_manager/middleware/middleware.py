@@ -197,11 +197,16 @@ def cloud_rm(node_name, pod_id):
             if was_online == True: #node was online - remove from load balancer
 
                 #put the node in maintenance state using HAProxy socket
-                disable_command = "echo 'experimental-mode on; set server " + servers + "/'" + node_name + ' state maint ' + '| sudo socat stdio /var/run/haproxy.sock'
+                #working shell command:
+                #echo "experimental-mode on; set server medium_servers/server1 state maint" | sudo socat stdio /var/run/haproxy.sock
+                disable_command = f'echo "experimental-mode on; set server {servers}/{node_name} state maint" | sudo socat stdio /var/run/haproxy.sock'
                 subprocess.run(disable_command, shell=True, check=True)
 
+            
                 #remove node from load balancer
-                rm_command = "echo 'experimental-mode on; del server " + servers + "/'" + node_name + '| sudo socat stdio /var/run/haproxy.sock'
+                #working shell command:
+                #echo "experimental-mode on; del server medium_servers/server1" | sudo socat stdio /var/run/haproxy.sock
+                rm_command = f'echo "experimental-mode on; del server {servers}/{node_name}" | sudo socat stdio /var/run/haproxy.sock'
                 subprocess.run(rm_command, shell=True, check=True)
 
                 #set the port number as available for registration
@@ -235,11 +240,13 @@ def cloud_launch(pod_id):
     #if pod is paused, does not notify load balancer
     #if pod is up and running (!paused), load balancer notified
         if is_paused != False:
-            add_command = "echo 'experimental-mode on; add server " + servers + "/'" + node_name + ' ' + ip_no_port + ':'  + port + '| sudo socat stdio /var/run/haproxy.sock'
+            #echo "experimental-mode on; add server medium_servers/server1 0.0.0.0:15000" | sudo socat stdio /var/run/haproxy.sock
+            add_command = f'echo "experimental-mode on; add server {servers}/{node_name} {ip_no_port}:{port}" | sudo socat stdio /var/run/haproxy.sock'
             subprocess.run(add_command, shell=True, check=True)
 
             #enable
-            enable_command = "echo 'experimental-mode on; set server " + servers + "/'" + node_name + ' state ready ' + '| sudo socat stdio /var/run/haproxy.sock'
+            #echo "experimental-mode on; set server medium_servers/server1 state ready" | sudo socat stdio /var/run/haproxy.sock
+            enable_command = f'echo "experimental-mode on; set server {servers}/{node_name} state ready" | sudo socat stdio /var/run/haproxy.sock'
             subprocess.run(enable_command, shell=True, check=True)
 
     #in either case, return response
@@ -262,7 +269,7 @@ def cloud_resume(pod_id):
             name = node['name']
             port = node['port']
             #add the node
-            add_command = "echo 'experimental-mode on; add server " + servers + "/'" + name + ' ' + ip_no_port + ':'  + port + '| sudo socat stdio /var/run/haproxy.sock'
+            add_command = f'echo "experimental-mode on; add server {servers}/{node_name} {ip_no_port}:{port}" | sudo socat stdio /var/run/haproxy.sock'
             subprocess.run(add_command, shell=True, check=True)
 
             #set these nodes to ready state for load balancer:
@@ -291,11 +298,12 @@ def cloud_pause(pod_id):
             name = node['name']
             port = node['port']
             #put the node in maintenance state in HAProxy 
-            disable_command = "echo 'experimental-mode on; set server " + servers + "/'" + name + ' state maint ' + '| sudo socat stdio /var/run/haproxy.sock'
+            disable_command = f'echo "experimental-mode on; set server {servers}/{node_name} state maint" | sudo socat stdio /var/run/haproxy.sock'
             subprocess.run(disable_command, shell=True, check=True)
 
+
             #remove thee nodes competely
-            rm_command = "echo 'experimental-mode on; del server " + servers + "/'" + name + '| sudo socat stdio /var/run/haproxy.sock'
+            rm_command = f'echo "experimental-mode on; del server {servers}/{node_name}" | sudo socat stdio /var/run/haproxy.sock'
             subprocess.run(rm_command, shell=True, check=True)
 
         return jsonify({'response': 'successfully paused the pod'})
