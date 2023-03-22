@@ -105,6 +105,7 @@ def get_free_node():
         """
     return next(filter(lambda node: node['status'] == 'NEW', pod['nodes']), None)
 
+
 def exec_job(node):
     """ Executes the job on a new thread, and append its output to a log file inside the node it's running on """
 
@@ -128,7 +129,6 @@ def exec_job(node):
     container.exec_run(["/bin/sh", "-c", f"echo '{output}' >> {log_file}"])
 
 
-
 ### A2 functions #####################################################################################################
 
 @app.route(f'/cloudproxy', methods=["POST"])
@@ -140,13 +140,10 @@ def cloud_init():
     # if it was requested to initialize a new cluster
     if request.method == 'POST':
         global POD_TYPE, JOB_TYPE, MAX_NODES, CPUS, MEMORY
-        global pod, initialized
+        global pod, initialized, logs
         print("Request to initialize main resource cluster.")
-        # we can't instantiate a cluster if it was already initialized
-        if initialized:
-            result = 'Failure : resource cluster was already initialized.'
         # proxy type is provided as a JSON request
-        elif (not request.is_json) or ((request_data := request.get_json()) is None) or (len(request_data) != 5):
+        if (not request.is_json) or ((request_data := request.get_json()) is None) or (len(request_data) != 5):
             result = 'Failure : proxy type information needs to be provided in JSON file.'
         # each pod has exactly one job that can be served by any node in the pod
         # the job is specified through a Dockerfile in the same directory as the proxy
@@ -166,6 +163,7 @@ def cloud_init():
             MAX_NODES = request_data['max_nodes']
             CPUS = request_data['cpus']
             MEMORY = request_data['memory']
+            logs = []
             # save the job
             job = {'id': JOB_TYPE,
                    'path': wrk_dir,
