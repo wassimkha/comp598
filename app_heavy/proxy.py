@@ -55,21 +55,16 @@ def node_init(node_name, port, cpus=CPUS, memory=MEMORY):
     # doc: https://docker-py.readthedocs.io/en/stable/containers.html#docker.models.containers.Container.status
 
     # build the image from the DockerFile
-    [img, log] = client.images.build(path=pod['job']['path'], rm=True,
-                                     dockerfile=pod['job']['dockerfile'])
+    [img, log] = client.images.build(path=pod['job']['path'], rm=True, dockerfile=pod['job']['dockerfile'])
 
     # linux Alpine image is running the containers, each has a specific CPU, memory, and storage limit factor
     client.containers.run(image=img, ports={'5000/tcp': port}, stop_signal='SIGINT',
                           detach=True, name=node_name, stdin_open=True, tty=True,
-                          cap_add='SYS_ADMIN', cpu_shares=int(cpus * 1024), mem_limit=memory,)  # storage_opt=storage)
+                          cap_add='SYS_ADMIN', cpu_shares=int(cpus * 1024), mem_limit=memory)
     container = client.containers.get(node_name)
     # make a directory for the logs
     container.exec_run(f"mkdir -p {LOG_DIR}")
     container.exec_run(f'touch {LOG_DIR}/{JOB_TYPE.lower()}_{port}.log')
-    # log = container.logs()
-    # logs.append(log)
-    # at this point, the node is running, but it is not running the job (i.e. the corresponding web server)
-    # container.pause()
 
     # add the new node to the pod; initially, it has the “NEW” status
     node_id = container.__getattribute__('id')
@@ -223,8 +218,7 @@ def cloud_pod_rm(pod_name):
 
 # route to register new node with name provided
 @app.route(f'/cloudproxy/nodes/<node_name>/<port_number>', methods=["POST"])
-@app.route(f'/cloudproxy/nodes/<node_name>/<port_number>/<pod_id>', methods=["POST"])
-def cloud_register(node_name, port_number, pod_id=POD_TYPE):
+def cloud_register(node_name, port_number):
     """ Creates a new node and registers it to the specified pod ID.
 
         :param port_number: port for the node
@@ -323,9 +317,6 @@ def cloud_launch():
             # run app.py on the container at the specified port
             thr = threading.Thread(target=exec_job, args=(node,))
             thr.start()
-            # save the output to a log file
-            #log = container.attach(stdout=True, stderr=True, logs=True)
-            #logs.append(log)
             result = 'Successfully launched the job.'
 
         # if the pod is paused, remains “ONLINE” but doesn't notify the Load Balancer
@@ -360,11 +351,6 @@ def cloud_pause():
         print(f"Pausing the pod.")
         # pause the container
         pod['paused'] = True
-        # for node in pod['nodes']:
-        #     if node['status'] == "ONLINE":
-        #         container = client.containers.get(node['id'])
-        #         container.remove(force=True)
-        #         pod['nodes'].remove(node)
         return jsonify({'result': 'success',
                         'online': [node for node in pod['nodes'] if node['status'] == "ONLINE"]})
 
@@ -402,8 +388,8 @@ def cloud_node_ls():
 
 
 # route to list all jobs in the provided node
-@app.route(f'/cloudproxy/jobs', methods=["GET"])
-@app.route(f'/cloudproxy/jobs/<node_id>', methods=["GET"])
+@app.route(f'/cloudproxy/job', methods=["GET"])
+@app.route(f'/cloudproxy/job/<node_id>', methods=["GET"])
 def cloud_job_ls(node_id=None):
     """Lists all the jobs that were assigned to the specified node. If no
        node is specified, all jobs that were launched by the user are listed.
@@ -421,26 +407,21 @@ def cloud_job_ls(node_id=None):
         elif node['status'] == "NEW":
             result = f'Node is new; no assigned job.'
         else:
-            result = "app.py"
+            result = f"app.py on port {node['port']}"
         # return the info
         return jsonify(result=result)
 
 
-# route to get the log from a job
-@app.route(f'/cloudproxy/jobs/<job_id>/log', methods=["GET"])
-def cloud_job_log(job_id=JOB_TYPE):
-    """ Returns the specified job log.
+# route to get all the logs
+@app.route(f'/cloudproxy/logs', methods=["GET"])
+def cloud_job_log():
+    """ Prints all logs from the job associated to this pod.
 
         :returns: job log as json
     """
     # if it was requested to get a job's log
     if request.method == 'GET':
         print(f"Request to list all logs.")
-        # result = []
-        # for line in logs:
-        #     result.append(line.decode())
-        # return jsonify(logs=result)
-        # the command fails if the job ID does not exist
         if (job := pod['job']) is None:
             return jsonify({'result': 'Job does not exist.', 'job': JOB_TYPE})
         elif not job['was_launched']:
@@ -475,7 +456,7 @@ def cloud_job_log(job_id=JOB_TYPE):
 
 
 # route to get the logs from node
-@app.route(f'/cloudproxy/nodes/<node_id>/logs', methods=["GET"])
+@app.route(f'/cloudproxy/logs/<node_id>', methods=["GET"])
 def cloud_node_log(node_id):
     """ Returns the specified node logs
 
@@ -508,6 +489,7 @@ def cloud_node_log(node_id):
             thr = threading.Thread(target=delete_local_logs, args=([port],))
             thr.start()
             return result
+
 
 def delete_local_logs(ports):
     """ Deletes temporary log files that are saved locally """
