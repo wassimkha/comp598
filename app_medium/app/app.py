@@ -15,6 +15,11 @@ def medium():
     elapsed_time = time.time() - start_time
     return jsonify({'message': f'Medium job executed successfully in {elapsed_time:.2f} seconds!'})
 
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def catch_all(path):
+    return 'You want path: %s' % path
+
                             
 
 if __name__ == '__main__':
