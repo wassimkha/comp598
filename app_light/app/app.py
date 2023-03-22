@@ -6,7 +6,8 @@ import time
 app = Flask (__name__)
 
 #rest end point - default
-@app.route('/')
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
 def light():
     time.sleep(1)
     return jsonify({'message': 'Light job executed successfully!'})

@@ -5,7 +5,8 @@ import numpy as np
 app = Flask(__name__)
 
 
-@app.route('/')
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
 def heavy():
     start_time = time.time()
     x = np.random.rand(10000, 10000)
