@@ -7,7 +7,7 @@ app = Flask(__name__)
 
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
-def heavy():
+def catch_all(path):
     start_time = time.time()
     x = np.random.rand(10000, 10000)
     for i in range(100):

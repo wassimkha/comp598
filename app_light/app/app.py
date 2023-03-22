@@ -8,7 +8,7 @@ app = Flask (__name__)
 #rest end point - default
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
-def light():
+def catch_all(path):
     time.sleep(1)
     return jsonify({'message': 'Light job executed successfully!'})
 
