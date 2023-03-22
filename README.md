@@ -95,3 +95,6 @@ After making changes:
 `sudo socat stdio /var/run/haproxy.sock`
 
 `show servers state`
+
+- see logs
+`sudo journalctl -u haproxy.service --since today --no-pager`
