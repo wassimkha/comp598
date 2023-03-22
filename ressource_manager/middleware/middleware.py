@@ -160,23 +160,23 @@ def cloud_register(node_name, pod_id):
     #URL, ip_no_port, servers, port_list = get_serverPrams(pod_id)
     get_serverPrams(pod_id)
 
-    port_number = random.randint(10000, 50000)
+    #port_number = random.randint(10000, 50000)
 
     
-#    print("this is the port number list:")
- #   print(port_list)
+    print("this is the port number list:")
+    print(port_list)
 
     #loop through list of port numbers and in find an available one
-    # for key, value in port_list.items():
-    #     if value == False :
-    #         port_number = key #get the first port_number with value=false (avilable)
-    #         break
+    for key, value in port_list.items():
+        if value == False :
+            port_number = key #get the first port_number with value=false (avilable)
+            break
 
-    # if port_number is not None:
-    #     print(f"The first available port is {port_number}")
-    # else:
-    #     print("All ports are occupied, reach capacity")
-    #     return jsonify({'result': 'Failure: all port numbers are occupied, reached capacity of pod'}) 
+    if port_number is not None:
+        print(f"The first available port is {port_number}")
+    else:
+        print("All ports are occupied, reach capacity")
+        return jsonify({'result': 'Failure: all port numbers are occupied, reached capacity of pod'}) 
 
     #call proxy to register this node - its status set to NEW, not running
     port = str(port_number)
@@ -187,9 +187,9 @@ def cloud_register(node_name, pod_id):
     #set port_number as false = taken in the list
     
     if result == 'Node added successfully.': #successfully registerd
-        # #set that port number as taken
-        # port_list[port_number] = True
-        # update_portList(pod_id) #update global dict for that proxy
+        #set that port number as taken
+        port_list[port_number] = True
+        update_portList(pod_id) #update global dict for that proxy
         print("node was successfully registered and port number occupied")
     
     #return proxy's response
@@ -236,9 +236,9 @@ def cloud_rm(node_name, pod_id):
                 subprocess.run(rm_command, shell=True, check=True)
 
                 #set the port number as available for registration
-                # if port in port_list:
-                #     port_list[port] = True
-                #     update_portList(pod_id)
+                if port in port_list:
+                    port_list[port] = True
+                    update_portList(pod_id)
 
             #if removed node was hte last node of the pod, then pod is paused 
             if is_paused :
