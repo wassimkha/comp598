@@ -365,6 +365,11 @@ def cloud_pod_ls():
     # if it was requested to get all pods
     if request.method == 'GET':
         print(f"Request to list all pods.")
+        if not initialized:
+            result = 'Pod was not initialized yet.'
+        else:
+            result = pod
+        print(result)
         return jsonify(pod=pod)
 
 
@@ -382,9 +387,12 @@ def cloud_node_ls():
         #  If no resource pod was specified, all nodes of the cloud system are listed
         if not initialized:
             result = 'Pod was not initialized yet.'
+            nodes = []
         else:
-            result = pod['nodes']
-        return jsonify(result=result)
+            result = 'Success.'
+            nodes = pod['nodes']
+        print(result)
+        return jsonify({'result': result, 'nodes': nodes})
 
 
 # route to list all jobs in the provided node

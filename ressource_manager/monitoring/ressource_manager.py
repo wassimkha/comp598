@@ -5,20 +5,19 @@ import sys
 import requests
 import pycurl
 
-
 app = Flask(__name__)
 
 cURL = pycurl.Curl()
 
 URL = 'http://10.140.17.121:5000'
 
-#pod_id = 0 
-ip_proxy_light = 'http://10.140.17.119:5000' 
+# pod_id = 0
+ip_proxy_light = 'http://10.140.17.119:5000'
 
-#pod_id = 1
+# pod_id = 1
 ip_proxy_medium = 'http://10.140.17.120:5000'
 
-#pod_id = 2
+# pod_id = 2
 ip_proxy_heavy = 'http://10.140.17.121:5000'
 
 id_to_proxy_ip = {
@@ -26,6 +25,7 @@ id_to_proxy_ip = {
     1: ip_proxy_medium,
     2: ip_proxy_heavy
 }
+
 
 # Define fake data for the cloud system
 
@@ -41,7 +41,8 @@ def transform_data(pods, jobs, logs):
         cloud_pod = {"id": pod["id"], "name": f"Pod{pod['id']}", "nodes": len(pod["nodes"])}
         cloud_pods.append(cloud_pod)
         for node in pod["nodes"]:
-            cloud_node = {"id": node_id, "name": f"Node{node_id}", "pod_id": pod["id"], "status": node["status"].capitalize()}
+            cloud_node = {"id": node_id, "name": f"Node{node_id}", "pod_id": pod["id"],
+                          "status": node["status"].capitalize()}
             cloud_nodes.append(cloud_node)
             node_logs[node_id] = f"Node{node_id} log"
             node_id += 1
@@ -65,7 +66,9 @@ def transform_data(pods, jobs, logs):
 
     return cloud_pods, cloud_nodes, cloud_jobs, node_logs, job_logs
 
+
 cloud_pods, cloud_nodes, cloud_jobs, node_logs, job_logs = None, None, None, None, None
+
 
 # Implement the RESTful API
 @app.route("/")
@@ -104,42 +107,44 @@ def index():
 
     return render_template("index.html", cloud_pods=cld_pods)
 
+
 @app.route("/cloud/pod/ls", methods=["GET"])
 def list_pods():
     return render_template("cloud_pods.html", cloud_pods=cloud_pods)
+
 
 @app.route("/cloud/node/ls/<int:pod_id>", methods=["GET"])
 def list_nodes(pod_id=None):
     url = id_to_proxy_ip[pod_id]
     # print("got pod id as", pod_id, url)
-    pods_json = requests.get(url + '/cloudproxy/pods').json()
-    if "pod" in pods_json:
-         pods_json = pods_json["pod"]
+    nodes_json = requests.get(url + '/cloudproxy/nodes').json()
+    nodes = []
+    if "nodes" in nodes_json:
+        nodes = nodes_json["nodes"]
     # print("got pods json as", pods_json)
     # pods = pods_json['result']
-    nodes = []
-    if pods_json and "nodes" in pods_json:
-        nodes = pods_json["nodes"]
     # print("got nodes as", nodes)
     return render_template("cloud_nodes.html", nodes=nodes, pod_id=pod_id)
+
 
 @app.route("/cloud/job/ls", methods=["GET"])
 @app.route("/cloud/job/ls/<node_id>", methods=["GET"])
 def list_jobs(node_id=None):
     jobs = []
     if node_id:
-        jobs_json = requests.get(URL + f'/cloudproxy/jobs/{node_id}').json()
+        jobs_json = requests.get(URL + f'/cloudproxy/job/{node_id}').json()
         jobs = [job for job in jobs_json['result'] if job['node_id'] == node_id]
     else:
-        jobs_json = requests.get(URL + '/cloudproxy/jobs').json()
+        jobs_json = requests.get(URL + '/cloudproxy/job').json()
         jobs = jobs_json['result']
 
     return render_template("cloud_jobs.html", jobs=jobs)
 
+
 @app.route("/cloud/lb", methods=["GET"])
 def watch_lb():
     rm_url = 'http://10.140.17.120:5001'
-    response = requests.get(f'{rm_url}/cloudproxy/loadbalencer/watch').json()
+    response = requests.get(f'{rm_url}/cloudproxy/loadbalancer/watch').json()
     arr = response["array"]
     array = [arr.pop(0).replace("|", " ")]
     for line in arr:
@@ -149,25 +154,28 @@ def watch_lb():
     else:
         return "LB not found", 404
 
+
 @app.route("/cloud/job/log/<job_id>", methods=["GET"])
 def get_job_log(job_id):
-    job_log = requests.get(URL + f'/cloudproxy/jobs/{job_id}/log').json()
+    job_log = requests.get(URL + f'/cloudproxy/logs').json()
     if job_log:
         return render_template("logs.html", logs=job_log)
     else:
         return "Job not found", 404
 
+
 @app.route("/cloud/log/node/<node_id>/<pod_id>", methods=["GET"])
 def get_node_log(node_id, pod_id):
     url = id_to_proxy_ip[int(pod_id)]
-    node_log = requests.get(url + f'/cloudproxy/jobs/{node_id}/log').content.decode('utf-8').splitlines()
+    node_log = requests.get(url + f'/cloudproxy/logs/{node_id}').content.decode('utf-8').splitlines()
     print("got log as", node_log, file=sys.stdout)
     if node_log:
         return render_template("node_logs.html", logs=node_log)
     else:
         return "Node not found", 404
 
-#flask app created
+
+# flask app created
 if __name__ == '__main__':
     # pods_json = requests.get(URL + '/cloudproxy/pods').json()
 
