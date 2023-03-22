@@ -1,5 +1,6 @@
 from flask import Flask, jsonify
-import sys
+import time
+
 
 #flask app ran on a container 
 app = Flask (__name__)
@@ -7,11 +8,8 @@ app = Flask (__name__)
 #rest end point - default
 @app.route('/')
 def light():
-    if len(sys.argv) < 2: 
-        return 'something went wrong!'
-
-                            #return on which container request is run 
-    return 'Hello from: ' + sys.argv[1] + '!\n'
+    time.sleep(1)
+    return jsonify({'message': 'Light job executed successfully!'})
 
 if __name__ == '__main__' :
     app.run(debug=True, host='0.0.0.0', port=5000)
