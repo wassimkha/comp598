@@ -76,15 +76,16 @@ def index():
     # pods_json = requests.get(URL + '/cloudproxy/pods').json()
     # pods = pods_json['result']
     pods_json_light = requests.get(ip_proxy_light + '/cloudproxy/pods').json()
-    pods_json_light_exist = "pod" in pods_json_light
+    pods_json_light_exist = "pod" in pods_json_light and pods_json_light["pod"]
 
     pods_json_medium = requests.get(ip_proxy_medium + '/cloudproxy/pods').json()
-    pods_json_medium_exist = "pod" in pods_json_medium
+    pods_json_medium_exist = "pod" in pods_json_medium and pods_json_medium["pod"]
 
     pods_json_heavy = requests.get(ip_proxy_heavy + '/cloudproxy/pods').json()
-    pods_json_heavy_exist = "pod" in pods_json_heavy
+    pods_json_heavy_exist = "pod" in pods_json_heavy and pods_json_heavy["pod"]
 
     cld_pods = []
+
 
     if pods_json_light_exist:
         pods_json_light = pods_json_light["pod"]
@@ -98,7 +99,7 @@ def index():
         pods_json_medium["name"] = "Medium"
         pods_json_medium["num_nodes"] = len(pods_json_medium["nodes"])
         cld_pods.append(pods_json_medium)
-    if pods_json_heavy:
+    if pods_json_heavy_exist:
         pods_json_heavy = pods_json_heavy["pod"]
         pods_json_heavy["id"] = 2
         pods_json_heavy["name"] = "Heavy"
