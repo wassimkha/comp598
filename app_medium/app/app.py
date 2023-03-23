@@ -20,10 +20,11 @@ app = Flask (__name__)
 def catch_all(path):
     # Simulating medium job
     start_time = time.time()
-    x = np.random.rand(1000, 1000)
+    x = np.random.rand(10000, 10000)
     for i in range(10):
         x = np.sqrt(x)
     elapsed_time = time.time() - start_time
+    time.sleep(10)
     return jsonify({'message': f'Medium job executed successfully in {elapsed_time:.2f} seconds!'})
 
                             
