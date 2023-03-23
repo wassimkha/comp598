@@ -38,10 +38,11 @@ comp598 (Heavy pod): comp598
 
 Load Balancer: listening on requests sent to 10.140.17.255 (vm2): 5002 and depending on ending of curl (ex. /heavy), request forward to respective node using specified balance options
 
-To view the config of load balancer (HAProxy), in VM02 enter:
+To view the config of load balancer (HAProxy), see in /loadBalancer/haproxy.cfg
+or in VM02 enter:
 `sudo cat /etc/haproxy/haproxy.cfg`
 
-## Set-U (running proxies, resource manager and dashboard)
+## Set-U p(running proxies, resource manager and dashboard)
 First, cd into private folder `cs598-group07-key` containing the private key
 
 **To run the 3 proxies**
