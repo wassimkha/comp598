@@ -42,7 +42,7 @@ To view the config of load balancer (HAProxy), see in /loadBalancer/haproxy.cfg
 or in VM02 enter:
 `sudo cat /etc/haproxy/haproxy.cfg`
 
-## Set-U p(running proxies, resource manager and dashboard)
+## Set-Up(running proxies, resource manager and dashboard)
 First, cd into private folder `cs598-group07-key` containing the private key
 
 **To run the 3 proxies**
