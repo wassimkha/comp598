@@ -90,9 +90,9 @@ To execute the cloud infrastructure, follow these steps:
 
 
 ## Sending Request as End User
-1. Assuming servers are created and launched into as the cloud user
+1. Assuming servers are created and launched by the cloud user
 2. cd into private folder `cs598-group07-key` containing the private key
-3. ssh into the server load balancer sits on by the following command `ssh -i cs598-group07-key comp598-user@winter2023-comp598-group07-02.cs.mcgill.ca`
+3. ssh into the server (VM2) load balancer sits on by the following command `ssh -i cs598-group07-key comp598-user@winter2023-comp598-group07-02.cs.mcgill.ca`
 3. Use curl to send request
 * to send a request to run a light job: `curl localhost:5002/light`
 * to send a request to run a medium job: `curl localhost:5002/medium`
