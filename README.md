@@ -16,7 +16,7 @@ The Simple Cloud Manager has the following classes:
 * Proxy: Handles requests to by carrying out the docker commands to manipulate the docker containers (there are 3 proxies 
 * Load balancer: Using HAProxy, the load balancer distributes incoming requests to the nodes in the pods based on their load. The goal is to test the load balancer's ability to spread the workload as required by injecting requests from the End user at different rates using an exponential distribution.
 
-Our VMs structure is (note: comp598 is a shared folder in all VMs): 
+**Our VMs structure** (note: comp598 is a shared folder in all VMs): 
 
 Overview: 
 * proxies are running on port 5000 of the 3 VMs
