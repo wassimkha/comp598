@@ -64,7 +64,7 @@ First, cd into private folder `cs598-group07-key` containing the private key
 **To run middleware that handles cloud user request and send to the appropriate proxies**
 1. ssh into VM2 by the following command `ssh -i cs598-group07-key comp598-user@winter2023-comp598-group07-02.cs.mcgill.ca`
 2. cd into folder containing medium proxy `cd /home/comp598-user/comp598/ressource_manager/middleware`
-3. Start the middleware by running `sudo python3 middleware.py`
+3. Start the middleware by running `python3 middleware.py`
 
 **To run cloud monitor**
 1. ssh into VM2 by the following command `ssh -i cs598-group07-key comp598-user@winter2023-comp598-group07-02.cs.mcgill.ca`
