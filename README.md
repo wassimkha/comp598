@@ -21,7 +21,7 @@ The Simple Cloud Manager has the following classes:
 Overview: 
 * proxies are running on port 5000 of the 3 VMs
 * middleware is running on port 5001 (VM2) that forward cloud user request to proxies
-* haproxy (load balancer( listening on 5001 of VM2
+* haproxy (load balancer) listening on port 5002 of VM2
 
 VM #1 (Light pod): comp598
 * /cloud_toolset/cloud_toolset.py (receiving and sending client requests to the resource manager)
