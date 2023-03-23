@@ -9,7 +9,7 @@ app = Flask(__name__)
 @app.route('/<path:path>')
 def catch_all(path):
     start_time = time.time()
-    x = np.random.rand(10000, 10000)
+    x = np.random.rand(3000, 3000)
     for i in range(100):
         x = np.dot(x, x)
     elapsed_time = time.time() - start_time
