@@ -13,6 +13,7 @@ def catch_all(path):
     for i in range(100):
         x = np.dot(x, x)
     elapsed_time = time.time() - start_time
+    print(f'Heavy job executed successfully in {elapsed_time:.2f} seconds!')
     return jsonify({'message': f'Heavy job executed successfully in {elapsed_time:.2f} seconds!'})
 
 if __name__ == '__main__':

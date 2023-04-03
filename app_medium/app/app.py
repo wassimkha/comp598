@@ -23,8 +23,9 @@ def catch_all(path):
     x = np.random.rand(10000, 10000)
     for i in range(10):
         x = np.sqrt(x)
-    elapsed_time = time.time() - start_time
     time.sleep(10)
+    elapsed_time = time.time() - start_time
+    print(f'Medium job executed successfully in {elapsed_time:.2f} seconds!')
     return jsonify({'message': f'Medium job executed successfully in {elapsed_time:.2f} seconds!'})
 
                             

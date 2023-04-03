@@ -10,6 +10,7 @@ app = Flask (__name__)
 @app.route('/<path:path>')
 def catch_all(path):
     time.sleep(1)
+    print('Light job executed successfully!')
     return jsonify({'message': 'Light job executed successfully!'})
 
 if __name__ == '__main__' :
