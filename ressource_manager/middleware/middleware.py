@@ -17,50 +17,24 @@ app = Flask(__name__)
 
 # ----------global var------------
 
-#TODO - PROXY: 
-# add CPU utilization for all nodes
-# implement /cloudproxy/monitor see below
-# imp;ement /cloudproxy/add - that add a node to the proxy and return node name, port number
-# implement /cloudproxy/remove - that remove a node from the proxy and return node name, port number
-
-
-#TODO: ########following to be implemented in proxy - from tutorial directly##########
-#An API endpoint that returns average cpu utilization
-@app.route('/cloudproxy/monitor')
-def monitor():
-    cpu_usage = 0.0
-
-    #looping through all containers, call stats method - returns dictionary
-    for container in client.containers.list():
-        stats = container.stats(stream=False)
-
-        cpu_stats = stats["cpu_stats"]
-        previous_cpu_stats = stats["previous_stats"]
-
-        container_execution_time_delta = float(cpu_stats["cpu_usage"]["total_usage"]) - float(previous_cpu_stats["cpu_usage"]["total_usage"])
-        total_container_time_delta = float(cpu_stats["system_cpu_usage"]) - float(previous_cpu_stats["system_cpu_usage"])
-        #adding all cpu usage of all containers
-        cpu_usage += container_execution_time_delta / total_container_time_delta * 100.0
-
-    if len(client.containers.list()) != 0:
-           #get avaerage cpu usage of the pod
-           cpu_usage = cpu_usage / len(client.container.list())
-    return jsonify({'cpu_usage': cpu_usage,
-                    'mem_percent': 0.0})
-
-global elastic_mode_light, elastic_mode_medium, elastic_mode_heavy, elastic_thread
+global elastic_mode_light, elastic_mode_medium, elastic_mode_heavy
 global URL, ip_no_port, servers, port_list, elastic_mode
 global ip_proxy_light, ip_proxy_light_no_port, port_numbers_light
 global ip_proxy_medium, ip_proxy_medium_no_port, port_numbers_medium
 global ip_proxy_heavy, ip_proxy_heavy_no_port, port_numbers_heavy
 global light_thread, medium_thread, heavy_thread
 
+global upper_threshold_light, lower_threshold_light
+global upper_threshold_medium, lower_threshold_medium
+global upper_threshold_heavy, lower_threshold_heavy
 
 # pod_id = 0
 ip_proxy_light = 'http://10.140.17.119:5000'
 ip_proxy_light_no_port = '10.140.17.119'
 elastic_mode_light = False
 light_thread = None
+upper_threshold_light = 1 
+lower_threshold_light = 0
 
 
 # pod_id = 1
@@ -68,6 +42,8 @@ ip_proxy_medium = 'http://10.140.17.120:5000'
 ip_proxy_medium_no_port = '10.140.17.120'
 elastic_mode_medium = False
 medium_thread = None
+upper_threshold_medium = 1 
+lower_threshold_medium = 0
 
 
 # pod_id = 2
@@ -75,39 +51,25 @@ ip_proxy_heavy = 'http://10.140.17.121:5000'
 ip_proxy_heavy_no_port = '10.140.17.121'
 elastic_mode_heavy = False
 heavy_thread = None
+upper_threshold_heavy = 1 
+lower_threshold_heavy = 0
 
 URL = ''
 ip_no_port = ''
 servers = ''
 port_list = {}
 elastic_mode = False
-elastic_thread = None
+upper_threshold = 0 
+lower_threshold = 0
 
 port_numbers_light = {key: False for key in range(15000, 15009)}  # 10
 port_numbers_medium = {key: False for key in range(15000, 15014)}  # 15
 port_numbers_heavy = {key: False for key in range(15000, 15019)}  # 20
 
-#for all 3 proxy - monitors every 3 seconds
-#runs in thread
-def monitor(pod_id):
-    global URL, ip_no_port, servers, port_list, elastic_mode
-    get_serverPrams(pod_id)
-    response = requests.get(URL + '/cloudproxy/monitor')
-    response_json = response.json()
-    result = response_json["result"]
-    # set port_number to false = taken in the list
-
-    if result == 'success':  # successfully registerd
-    # set that port number as taken
-        cpu_percent = response_json["cpu_percent"]
-        memory_percent = response_json["memory_percent"]
-        print("cpu percentage: " + str(cpu_percent) + '\n' + 'memory percentage' + str(memory_percent))
-    return cpu_percent
-
 # Helper function to get URL based on specified pod
 def get_serverPrams(pod_id):
     print("in the function get_serverPrams")
-    global elastic_mode_light, elastic_mode_medium, elastic_mode_heavy, elastic_thread
+    global elastic_mode_light, elastic_mode_medium, elastic_mode_heavy
     global URL, ip_no_port, servers, port_list, elastic_mode
     global ip_proxy_light, ip_proxy_light_no_port, port_numbers_light
     global ip_proxy_medium, ip_proxy_medium_no_port, port_numbers_medium
@@ -120,7 +82,6 @@ def get_serverPrams(pod_id):
         servers = 'light_servers'
         port_list = port_numbers_light
         elastic_mode = elastic_mode_light
-        elastic_thread = light_thread
 
     elif pod_id == '1':
         URL = ip_proxy_medium
@@ -128,7 +89,6 @@ def get_serverPrams(pod_id):
         servers = 'medium_servers'
         port_list = port_numbers_medium
         elastic_mode = elastic_mode_medium
-        elastic_thread = medium_thread
 
     elif pod_id == '2':
         print("here")
@@ -138,7 +98,6 @@ def get_serverPrams(pod_id):
         servers = 'heavy_servers'
         port_list = port_numbers_heavy
         elastic_mode = elastic_mode_heavy
-        elastic_thread = heavy_thread
     # return URL, ip_no_port, servers, port_list
 
 
@@ -154,11 +113,11 @@ def update_portList(pod_id):
 def update_elasticity(pod_id):
     global elastic_mode_light, elastic_mode_medium, elastic_mode_heavy, elastic_mode
     if pod_id == '0':
-        port_numbers_light = elastic_mode
+        elastic_mode_light = elastic_mode
     elif pod_id == '1':
-        port_numbers_medium = elastic_mode
+        elastic_mode_medium = elastic_mode
     elif pod_id == '2':
-        port_numbers_heavy = elastic_mode
+        elastic_mode_heavy = elastic_mode
 
 
 # URL, ip_no_port, servers, port_list = get_serverPrams(pod_id)
@@ -481,107 +440,28 @@ def load_balancer_watch():
 
 # ########TODO: below are the A3 commands for elastic maanager#################
 
-# cloud elasticity lower_threshold [POD_NAME] [value]
-#TODO: cloud_toolset calls and returns correspondingly
-@app.route('/cloudproxy/elasticity/lower_threshold/<pod_id>/<value>', methods=["POST"])
-def elasticity_lower_threshold(pod_id, value):
-    #**value would be between 0 and 1
-    # ex. cloud user => 0.1
-    #TODO: cloud toolset will turn pod name to pod id
-    global URL, ip_no_port, servers, port_list, elastic_mode
-    get_serverPrams(pod_id)
 
-    if elastic_mode is False:
-        #if in elastic mode, cloud management command not available to cloud user
-        return jsonify({'result': 'Pod not in elastic mode, command not available'})
-    
-    """
-    Remove a node from the specified pod if its avg CPU utilization is lower than the given value.
-    """
-    cpu_percent = monitor(pod_id)
-    if cpu_percent < value:
-                # If CPU utilization is below the lower threshold and number of nodes is greater than the lower size limit,
-                # proxy - new API - remove a node and return port number? - same method but no name
-                # remove from load balancer once gotten back the port number
-                #TODO: remove a node from the pod (Online to New)
-        #response = requests.put(URL + '/cloudproxy/elasticity/lower_threshold/')
-        response = requests.put(URL + '/cloudproxy/remove')
+#elasticity function
+def elasticity_light():
+    while True:
+        global URL, ip_no_port, servers, port_list, elastic_mode
+        get_serverPrams(0)
+
+        global ip_proxy_light, lower_threshold_light, upper_threshold_light
+        response = requests.post(ip_proxy_light + '/cloudproxy/scale/' + lower_threshold_light + '/' + upper_threshold_light) 
         response_json = response.json()
-        result = response_json['result']
 
-        #TODO: modify based on implementation of the proxy
-        if result == 'Node removed':
-            node_name = response_json["name"]
-            port = response_json["port"]
-            is_paused = response_json["is_paused"]
+        # proxy's scale function will return two lists - nodes added or removed
 
-            #Or middleware uses the mo
+        #TODO: modify based on proxy's implementation
+        added_nodes = response_json["add"]
 
-
-            #disable the node from load balancer
-            disable_command = f'echo "experimental-mode on; set server {servers}/{node_name} state maint" | sudo socat stdio /var/run/haproxy.sock'
-            print(disable_command)
-            subprocess.run(disable_command, shell=True, check=True)
-
-            # remove node from load balancer
-            # working shell command:
-            # echo "experimental-mode on; del server medium_servers/server1" | sudo socat stdio /var/run/haproxy.sock
-            rm_command = f'echo "experimental-mode on; del server {servers}/{node_name}" | sudo socat stdio /var/run/haproxy.sock'
-            print(rm_command)
-            subprocess.run(rm_command, shell=True, check=True)
-
-            # set the port number as available for registration
-            if port in port_list:
-                port_list[port] = True
-                update_portList(pod_id)
-
-            # if removed node was the last node of the pod, then pod is paused
-            if is_paused:
-                cloud_pause(pod_id)
-
-        #return proxy's response
-        return Response(response.content, content_type=response.headers['content-type'])
-
-
-   
-# cloud elasticity upper_threshold [POD_NAME] [value]
-@app.route('/cloudproxy/elasticity/uuper_threshold/<pod_id>/<value>', methods=["POST"])
-def elasticity_upper_threshold(pod_id, value):
-     #TODO: cloud toolset will turn pod name to pod id
-    
-    """
-    Add a node from the specified pod if the CPU utilization is higher than the given value.
-    """
-    global URL, ip_no_port, servers, port_list, elastic_mode
-    get_serverPrams(pod_id)
-
-    if elastic_mode is False:
-        #if in elastic mode, cloud management command not available to cloud user
-        return jsonify({'result': 'Pod not in elastic mode, command not available'})
-
-    cpu_percent = monitor(pod_id)
-
-    if cpu_percent > value:
-            # If CPU utilization is above the upper threshold and number of nodes is less than the upper size limit,
-            # TODO: add a new node to the pod (New to Online)
-            # proxy - new API - add new node, and return port number? - same method but no name
-            # add to load balancer once gotten back the port number
-
-        # Send a request to proxy to first check CPU utilization
-        #proxy: if CPU utilization lower than value,  remove the node completely, return the node to be removed with port number
-        #response = requests.put(URL + '/cloudproxy/elasticity/upper_threshold/')
-        response = requests.put(URL + '/cloudproxy/add')
-        response_json = response.json()
-        result = response_json['result']
-        #here, proxy will add a ONLINE node and return the node name and port number
-
-        #TODO: modify based on implementation of the proxy
-        if result == 'Node added':
-            node_name = response_json["name"]
-            port = response_json["port"]
+        for node in added_nodes:
+            node_name = node["name"]
+            port = node["port"]
             port_number = int(port)
 
-            # add the node
+            #add node to proxy
             add_command = f'echo "experimental-mode on; add server {servers}/{node_name} {ip_no_port}:{port}" | sudo socat stdio /var/run/haproxy.sock'
             print(add_command)
             subprocess.run(add_command, shell=True, check=True)
@@ -593,65 +473,236 @@ def elasticity_upper_threshold(pod_id, value):
 
             # set that port number as taken in the list
             port_list[port_number] = True
-            update_portList(pod_id)  # update global dict for that proxy
+            update_portList(0)  # update global dict for that proxy
             print("node was successfully registered and port number occupied")
 
-    #in all cases, just return proxy's response
-    return Response(response.content, content_type=response.headers['content-type'])
+        ######removing
+        removed_nodes = response_json["remove"]
 
+        for node in removed_nodes:
+            node_name = node["name"]
+            port = node["port"]
 
-#helper function
-def adjust_pod_size(pod_id, lower_size, upper_size):
+            #disable the node from load balancer
+            disable_command = f'echo "experimental-mode on; set server {servers}/{node_name} state maint" | sudo socat stdio /var/run/haproxy.sock'
+            print(disable_command)
+            subprocess.run(disable_command, shell=True, check=True)
+
+            # remove node from load balancer
+            rm_command = f'echo "experimental-mode on; del server {servers}/{node_name}" | sudo socat stdio /var/run/haproxy.sock'
+            print(rm_command)
+            subprocess.run(rm_command, shell=True, check=True)
+
+            # set the port number as available for registration
+            if port in port_list:
+                port_list[port] = True
+                update_portList(0)
+
+        time.sleep(5)
+
+def elasticity_medium():
     while True:
-            cpu_percent = monitor(pod_id)
-            if cpu_percent is None:  # If monitor function returns None, break the loop
-                break
-            print(f"CPU utilization: {cpu_percent:.2f}")
+        global URL, ip_no_port, servers, port_list, elastic_mode
+        get_serverPrams(1)
 
-            if cpu_percent > upper_size:
-                # If CPU utilization is above the upper threshold and number of nodes is less than the upper size limit,
-                # TODO: add a new node to the pod (New to Online)
-                # proxy - new API - add new node, and return port number? - same method but no name
-                # add to load balancer once gotten back the port number
-                print(f"Added a new node to the pod.")
-            elif cpu_percent < lower_size:
-                # If CPU utilization is below the lower threshold and number of nodes is greater than the lower size limit,
-                # proxy - new API - remove a node and return port number? - same method but no name
-                # remove from load balancer once gotten back the port number
-                #TODO: remove a node from the pod (Online to New)
+        global ip_proxy_medium, lower_threshold_medium, upper_threshold_medium
+        response = requests.post(ip_proxy_medium + '/cloudproxy/scale/' + lower_threshold_medium + '/' + upper_threshold_medium) 
+        response_json = response.json()
 
-                print("Removed a node from the pod.")
-            time.sleep(3)
+        # proxy's scale function will return two lists - nodes added or removed
 
+        #TODO: modify based on proxy's implementation
+        added_nodes = response_json["add"]
+
+        for node in added_nodes:
+            node_name = node["name"]
+            port = node["port"]
+            port_number = int(port)
+
+            #add node to proxy
+            add_command = f'echo "experimental-mode on; add server {servers}/{node_name} {ip_no_port}:{port}" | sudo socat stdio /var/run/haproxy.sock'
+            print(add_command)
+            subprocess.run(add_command, shell=True, check=True)
+
+            # set the node to ready state for load balancer:
+            enable_command = f'echo "experimental-mode on; set server {servers}/{node_name} state ready" | sudo socat stdio /var/run/haproxy.sock'
+            print(enable_command)
+            subprocess.run(enable_command, shell=True, check=True)
+
+            # set that port number as taken in the list
+            port_list[port_number] = True
+            update_portList(1)  # update global dict for that proxy
+            print("node was successfully registered and port number occupied")
+
+        ######removing
+        removed_nodes = response_json["remove"]
+
+        for node in removed_nodes:
+            node_name = node["name"]
+            port = node["port"]
+
+            #disable the node from load balancer
+            disable_command = f'echo "experimental-mode on; set server {servers}/{node_name} state maint" | sudo socat stdio /var/run/haproxy.sock'
+            print(disable_command)
+            subprocess.run(disable_command, shell=True, check=True)
+
+            # remove node from load balancer
+            rm_command = f'echo "experimental-mode on; del server {servers}/{node_name}" | sudo socat stdio /var/run/haproxy.sock'
+            print(rm_command)
+            subprocess.run(rm_command, shell=True, check=True)
+
+            # set the port number as available for registration
+            if port in port_list:
+                port_list[port] = True
+                update_portList(2)
+
+        time.sleep(5)
+
+def elasticity_heavy():
+    while True:
+        global URL, ip_no_port, servers, port_list, elastic_mode
+        get_serverPrams(2)
+
+        global ip_proxy_heavy, lower_threshold_heavy, upper_threshold_heavy
+        response = requests.post(ip_proxy_heavy + '/cloudproxy/scale/' + lower_threshold_heavy + '/' + upper_threshold_heavy) 
+        response_json = response.json()
+
+        # proxy's scale function will return two lists - nodes added or removed
+
+        #TODO: modify based on proxy's implementation
+        added_nodes = response_json["add"]
+
+        for node in added_nodes:
+            node_name = node["name"]
+            port = node["port"]
+            port_number = int(port)
+
+            #add node to proxy
+            add_command = f'echo "experimental-mode on; add server {servers}/{node_name} {ip_no_port}:{port}" | sudo socat stdio /var/run/haproxy.sock'
+            print(add_command)
+            subprocess.run(add_command, shell=True, check=True)
+
+            # set the node to ready state for load balancer:
+            enable_command = f'echo "experimental-mode on; set server {servers}/{node_name} state ready" | sudo socat stdio /var/run/haproxy.sock'
+            print(enable_command)
+            subprocess.run(enable_command, shell=True, check=True)
+
+            # set that port number as taken in the list
+            port_list[port_number] = True
+            update_portList(2)  # update global dict for that proxy
+            print("node was successfully registered and port number occupied")
+
+        ######removing
+        removed_nodes = response_json["remove"]
+
+        for node in removed_nodes:
+            node_name = node["name"]
+            port = node["port"]
+
+            #disable the node from load balancer
+            disable_command = f'echo "experimental-mode on; set server {servers}/{node_name} state maint" | sudo socat stdio /var/run/haproxy.sock'
+            print(disable_command)
+            subprocess.run(disable_command, shell=True, check=True)
+
+            # remove node from load balancer
+            rm_command = f'echo "experimental-mode on; del server {servers}/{node_name}" | sudo socat stdio /var/run/haproxy.sock'
+            print(rm_command)
+            subprocess.run(rm_command, shell=True, check=True)
+
+            # set the port number as available for registration
+            if port in port_list:
+                port_list[port] = True
+                update_portList(2)
+
+        time.sleep(5)
+
+# cloud elasticity lower_threshold [POD_NAME] [value]
+#setter method - sets lower threshold 
+@app.route('/cloudproxy/elasticity/lower_threshold/<pod_id>/<value>', methods=["POST"])
+def elasticity_lower_threshold(pod_id, value):
+     
+    #TODO: cloud toolset will turn pod name to pod id
+    global URL, ip_no_port, servers, port_list, elastic_mode
+    global lower_threshold_light, lower_threshold_medium, lower_threshold_heavy
+    get_serverPrams(pod_id)
+
+    if elastic_mode is False:
+        #if not in elastic mode, cloud management command not available to cloud user
+        return jsonify({'result': 'Pod not in elastic mode, command not available'})
+    
+    #else - in elastic mode, simply set the global var
+    if pod_id == 0:
+        lower_threshold_light = value
+    elif pod_id == 1:
+        lower_threshold_medium = value
+    elif pod_id == 2:
+        lower_threshold_heavy = value
+
+    return jsonify({'result': 'Lower threshold of the pod successfully set to value: ' + value})
+    
+
+   
+# cloud elasticity upper_threshold [POD_NAME] [value]
+@app.route('/cloudproxy/elasticity/uuper_threshold/<pod_id>/<value>', methods=["POST"])
+def elasticity_upper_threshold(pod_id, value):
+    global URL, ip_no_port, servers, port_list, elastic_mode
+    global upper_threshold_light, upper_threshold_medium, upper_threshold_heavy
+    
+    get_serverPrams(pod_id)
+
+    if elastic_mode is False:
+        #if not in elastic mode, cloud management command not available to cloud user
+        return jsonify({'result': 'Pod not in elastic mode, command not available'})
+    
+    #else - in elastic mode, simply set the global var
+    if pod_id == 0:
+        upper_threshold_light = value
+    elif pod_id == 1:
+        upper_threshold_medium = value
+    elif pod_id == 2:
+        upper_threshold_heavy = value
+
+    return jsonify({'result': 'Upper threshold of the pod successfully set to value: ' + value})
+    
 #cloud elasticity enable [POD_NAME] [lower_size] [upper_size]
 #eables elasticity fo rthe given pod
-
- #TODO: cloud toolset will turn pod name to pod id
-# Store a reference to the pod size thread in a global variable
 
 @app.route('/cloudproxy/elasticity/enable/<pod_id>/<lower_size>/<upper_size>', methods=["POST"])
 def enable_elasticity(pod_id, lower_size, upper_size):
 
-    global URL, ip_no_port, servers, port_list, elastic_mode, elastic_thread
+    global URL, ip_no_port, servers, port_list, elastic_mode
     get_serverPrams(pod_id)
 
     if elastic_mode is True:
         #if in elastic mode, cloud management command not available to cloud user
         return jsonify({'result': 'Pod already in elastic mode'})
+    
     else: #mode is false, so set to true
         elastic_mode = True
         #update global elastic_mode for that pod
         update_elasticity(pod_id)
-        # Start a thread to adjust the pod size based on CPU utilization
-        elastic_thread = threading.Thread(target=adjust_pod_size, args=(pod_id, lower_size, upper_size))
-        elastic_thread.start()
+        #Start a thread to adjust the pod size based on CPU utilization
+
+        requests.post(URL + '/cloudproxy/elasticity/' + lower_size + '/' + upper_size) 
+
+        if pod_id == 0:
+            light_thread = threading.Thread(target=elasticity_light)
+            light_thread.start()
+        elif pod_id == 1:
+            medium_thread = threading.Thread(target=elasticity_medium)
+            medium_thread.start()
+        elif pod_id == 2:
+            heavy_thread = threading.Thread(target=elasticity_heavy)
+            heavy_thread.start()
+
         return jsonify({'response': 'successfully enabled elasticity of the pod'})
 
     
 @app.route('/cloudproxy/elasticity/disable/<pod_id>', methods=["POST"])
 def disable_elasticity(pod_id):
+    #stop threading for that pod
 
-    global elastic_mode, elastic_thread
+    global elastic_mode
     if elastic_mode is False:
         #if in elastic mode, cloud management command not available to cloud user
         return jsonify({'result': 'Pod not in elastic mode, command not available'})
@@ -659,21 +710,21 @@ def disable_elasticity(pod_id):
         elastic_mode = False
         update_elasticity(pod_id)
 
-    # Stop the thread that adjusts the pod size based on CPU utilization
-    if elastic_thread:
-        elastic_thread.cancel()
-        elastic_thread.join()
-        elastic_thread = None
+    requests.post(URL + '/cloudproxy/disable/') 
+
+    if pod_id == 0:
+        light_thread.cancel()
+        light_thread.join()
+    elif pod_id == 1:
+        medium_thread.cancel()
+        medium_thread.join()
+    elif pod_id == 2:
+        heavy_thread.cancel()
+        heavy_thread.join()
 
     return jsonify({'response': 'successfully disabled elasticity of the pod'})
 
-   
-
-
-
-
-    
-
+#below for A1 - not needed
 
 # #route to abort a job
 # @app.route('/cloudproxy/jobs/<job_id>', methods=["DELETE"])
@@ -722,5 +773,4 @@ def disable_elasticity(pod_id):
 #     return Response(response.content, content_type=response.headers['content-type'])
 
 if __name__ == "__main__":
-    #new thread to monitor - doesnt not block the main app
     app.run(host="0.0.0.0", port=5001, debug=True)

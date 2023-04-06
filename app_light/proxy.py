@@ -45,6 +45,37 @@ CPUS = 0
 MEMORY = ""
 logs = []
 
+##############################For A3 - in case helpful#############################
+#Endpoi ts to implement
+#/cloudproxy/elasticity/enable/<lower_size>/<upper_size> - pod's elasticity enabled, update the pod's lower and upper size
+#/cloudproxy/elasticity/disable - pod's elasticity disabled - back to A2's constraints
+#/scale/<lower_threshold>/<upper_threshold> - add or remove nodes based on constraint
+
+#TODO: ########following to be implemented in proxy - from tutorial directly##########
+#An API endpoint that returns average cpu utilization
+@app.route('/cloudproxy/monitor')
+def monitor():
+    cpu_usage = 0.0
+
+    #looping through all containers, call stats method - returns dictionary
+    for container in client.containers.list():
+        stats = container.stats(stream=False)
+
+        cpu_stats = stats["cpu_stats"]
+        previous_cpu_stats = stats["previous_stats"]
+
+        container_execution_time_delta = float(cpu_stats["cpu_usage"]["total_usage"]) - float(previous_cpu_stats["cpu_usage"]["total_usage"])
+        total_container_time_delta = float(cpu_stats["system_cpu_usage"]) - float(previous_cpu_stats["system_cpu_usage"])
+        #adding all cpu usage of all containers
+        cpu_usage += container_execution_time_delta / total_container_time_delta * 100.0
+
+    if len(client.containers.list()) != 0:
+           #get avaerage cpu usage of the pod
+           cpu_usage = cpu_usage / len(client.container.list())
+    return jsonify({'cpu_usage': cpu_usage,
+                    'mem_percent': 0.0})
+
+
 ### helpers ##########################################################################################################
 
 def node_init(node_name, port, cpus=CPUS, memory=MEMORY):
