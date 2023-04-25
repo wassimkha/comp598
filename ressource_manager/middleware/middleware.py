@@ -626,24 +626,16 @@ def elasticity_lower_threshold(pod_id, value):
     global upper_threshold_light, upper_threshold_medium, upper_threshold_heavy, lower_threshold_light, lower_threshold_medium, lower_threshold_heavy
     get_serverPrams(pod_id)
 
-    value = int(value)
-
     if elastic_mode is False:
         #if not in elastic mode, cloud management command not available to cloud user
         return jsonify({'result': 'Pod not in elastic mode, command not available'})
     
     #else - in elastic mode, simply set the global var
     if pod_id == "0":
-        if upper_threshold_light <= value:
-            return jsonify({'result': 'cannot set a lower threshold higher than the upper'})
         lower_threshold_light = value
     elif pod_id == "1":
-        if upper_threshold_medium <= value:
-            return jsonify({'result': 'cannot set a lower threshold higher than the upper'})
         lower_threshold_medium = value
     elif pod_id == 2:
-        if upper_threshold_heavy <= value:
-            return jsonify({'result': 'cannot set a lower threshold higher than the upper'})
         lower_threshold_heavy = value
 
     return jsonify({'result': f'Lower threshold of the pod successfully set to value: {value}'})
@@ -655,11 +647,6 @@ def elasticity_lower_threshold(pod_id, value):
 def elasticity_upper_threshold(pod_id, value):
     global URL, ip_no_port, servers, port_list, elastic_mode
     global upper_threshold_light, upper_threshold_medium, upper_threshold_heavy, lower_threshold_light, lower_threshold_medium, lower_threshold_heavy
-    
-    value = int(value)
-    # lower_threshold_light = int(lower_threshold_light)
-    # lower_threshold_medium = int(lower_threshold_medium)
-    # lower_threshold_heavy = int(lower_threshold_heavy)
 
     get_serverPrams(pod_id)
     if elastic_mode is False:
