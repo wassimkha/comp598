@@ -237,7 +237,7 @@ def cloud_elasticity_disable(url, command):
         command_list = command.split()
         if len(command_list) == 6: # cloud elasticity disable [POD_NAME] 
             pod_name = command_list[3]
-            response = requests.post(f'{url}/cloudproxy/elasticity/disable/{pod_name}')
+            response = requests.post(f'{url}/cloudproxy/elasticity/disable/{pod_name}').json()
             print(response)
 
         else: #too many arguments
@@ -256,7 +256,7 @@ def cloud_elasticity_enable(url, command):
             pod_name = command_list[3]
             lower_size = command_list[4]
             upper_size = command_list[5]
-            response = requests.post(f'{url}/cloudproxy/elasticity/enable/{pod_name}/{lower_size}/{upper_size}')
+            response = requests.post(f'{url}/cloudproxy/elasticity/enable/{pod_name}/{lower_size}/{upper_size}').json()
             print(response)
 
         else: #too many arguments
@@ -274,7 +274,7 @@ def cloud_upper_threshold(url, command):
         if len(command_list) == 5: # cloud elasticity upper_threshold [POD_NAME] [value]
             pod_name = command_list[3]
             value = command_list[4]
-            response = requests.post(f'{url}/cloudproxy/elasticity/uper_threshold/{pod_name}/{value}')
+            response = requests.post(f'{url}/cloudproxy/elasticity/upper_threshold/{pod_name}/{value}').json()
             print(response)
 
         else: #too many arguments
@@ -292,7 +292,7 @@ def cloud_lower_threshold(url, command):
         if len(command_list) == 5: # cloud elasticity lower_threshold [POD_NAME] [value]
             pod_name = command_list[3]
             value = command_list[4]
-            response = requests.post(f'{url}/cloudproxy/elasticity/lower_threshold/{pod_name}/{value}')
+            response = requests.post(f'{url}/cloudproxy/elasticity/lower_threshold/{pod_name}/{value}').json()
             print(response)
 
         else: #too many arguments

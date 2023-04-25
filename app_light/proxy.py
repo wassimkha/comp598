@@ -526,6 +526,7 @@ def cloud_pod_ls():
         if not initialized:
             result = 'Pod was not initialized yet.'
         else:
+            pod["cpu"] = get_avg_cpu()
             result = pod
         print(result)
         return jsonify(pod=pod)
