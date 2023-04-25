@@ -105,7 +105,6 @@ def index():
         pods_json_heavy["name"] = "Heavy"
         pods_json_heavy["num_nodes"] = len(pods_json_heavy["nodes"])
         cld_pods.append(pods_json_heavy)
-
     return render_template("index.html", cloud_pods=cld_pods)
 
 

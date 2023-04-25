@@ -58,6 +58,7 @@
         <th>Number of Nodes</th>
         <th>Max Nodes</th>
         <th>Paused</th>
+        <th>cpu</th>
         <th>See The Nodes</th>
       </tr>
       {% for pod in cloud_pods %}
@@ -67,6 +68,7 @@
         <td>{{ pod.num_nodes }}</td>
         <td>{{ pod.max_nodes }}</td>
         <td>{{ pod.paused }}</td>
+        <td>{{ pod.cpu }}</td>
         <td><a href="/cloud/node/ls/{{ pod.id }}">nodes</a></td>
       </tr>
       {% endfor %}
