@@ -45,7 +45,124 @@ CPUS = 0
 MEMORY = ""
 logs = []
 
+
+##############################For A3 - in case helpful#############################
+# Endpoint ts to implement
+# /cloudproxy/elasticity/enable/<lower_size>/<upper_size> - pod's elasticity enabled, update the pod's lower and upper size
+# /cloudproxy/elasticity/disable - pod's elasticity disabled - back to A2's constraints
+# /scale/<lower_threshold>/<upper_threshold> - add or remove nodes based on constraint
+
+# API endpoint that returns average cpu utilization
+@app.route('/cloudproxy/monitor', methods=["GET"])
+def monitor():
+    if request.method == 'GET':
+        # if there are no containers
+        if len(pod['nodes']) == 0:
+            return jsonify({'cpu_usage': None, 'mem_percent': None})
+        # otherwise get the average and return it
+        cpu_usage = get_avg_cpu()
+        return jsonify({'cpu_usage': cpu_usage, 'mem_percent': 0.0})
+
+
+# variables for the elasticity
+min_nodes = 0.0
+max_nodes = 1.0
+elasticity = False
+
+
+# pod's elasticity enabled, update the pod's lower and upper size
+@app.route('/cloudproxy/elasticity/<lower_size>/<upper_size>', methods=["POST"])  # TODO no verbs in URLs
+def enable_elasticity(lower_size, upper_size):
+    if request.method == 'POST':
+        print(f"Enabling elasticity.")
+        global min_nodes, max_nodes, elasticity
+        # enable elasticity (disable register and launch)
+        elasticity = True
+        # update the lower_size and upper_size
+        min_nodes = float(lower_size)
+        max_nodes = float(upper_size)
+        # TODO scale the pods so they are within range ?
+        return jsonify({'result': 'Success'})
+
+
+# add or remove nodes based on constraint
+@app.route('/cloudproxy/elasticity', methods=["DELETE"])
+def disable_elasticity():
+    if request.method == 'DELETE':
+        print(f"Disabling elasticity.")
+        global min_nodes, max_nodes, elasticity
+        # disable elasticity (enable register and launch)
+        elasticity = False
+        return jsonify({'result': 'Success'})
+
+# pod's elasticity enabled, update the pod's lower and upper size
+@app.route('/cloudproxy/scale/<lower_threshold>/<upper_threshold>', methods=["POST"]) # TODO no verbs in URLs
+def scale(lower_threshold, upper_threshold):
+    if request.method == 'POST':
+        print(f"Request to scale the number of pods.")
+        global min_nodes, max_nodes, elasticity
+        currently_online = len([node for node in pod['nodes'] if node['status'] == 'ONLINE'])
+        removed = []
+        added = []
+        upper_threshold = float(upper_threshold)
+        lower_threshold = float(lower_threshold)
+        # we only scale if elasticity is enabled
+        if not elasticity:
+            result = 'Failure : elasticity needs to be enabled for the pods to be scaled.'
+        # ensure the values are valid
+        elif (upper_threshold < lower_threshold) or (lower_threshold <= 0) or (upper_threshold > MAX_NODES):
+            result = 'Failure : invalid threshold values.'
+        else:
+            result = 'Success'
+            # 1. get the average cpu utilization
+            avg_cpu_usage = get_avg_cpu()
+            # 2. compare it against the upper and lower thresholds to get the number of containers to add or remove
+            if avg_cpu_usage > upper_threshold:
+                scaling = min(((avg_cpu_usage - upper_threshold) / upper_threshold) + 1, max_nodes - currently_online)
+                # 3a. trigger the addition actions
+                for i in range(int(scaling)):
+                    if (node := get_free_node()) is None:
+                        break
+                    added.append(node['name'])
+                    # execute the job
+                    thr = threading.Thread(target=exec_job, args=(node,))
+                    thr.start()
+            elif avg_cpu_usage < lower_threshold:
+                scaling = min((lower_threshold - avg_cpu_usage) / lower_threshold, currently_online - min_nodes)
+                # 3b. trigger the deletion actions
+                for i in range(int(scaling)):
+                    if (node := get_online_node()) is None:
+                        break
+                    removed.append(node['name'])
+                    # abort the job
+                    thr = threading.Thread(target=abort_job, args=(node,))
+                    thr.start()
+        print(result)
+        return jsonify({'result': result, 'removed': removed, 'added': added})
+
+
+# get the average cpu utilization
+def get_avg_cpu():
+    # for each container
+    cpu_usage = 0.0
+    for container in client.containers.list():
+        # get cpu usage statistics
+        stats = container.stats(stream=False)
+        cpu_stats = stats["cpu_stats"]
+        previous_stats = stats["precpu_stats"]
+        # get the total usage
+        delta_t = float(cpu_stats["cpu_usage"]["total_usage"]) - float(previous_stats["cpu_usage"]["total_usage"])
+        sys_delta_t = float(cpu_stats["system_cpu_usage"]) - float(previous_stats["system_cpu_usage"])
+        # add all cpu usage of all containers
+        cpu_usage += delta_t / sys_delta_t * 100.0
+    # get average cpu usage of the pod
+    if len(client.containers.list()) != 0:
+        cpu_usage /= len(client.containers.list())
+    return cpu_usage
+
+
 ### helpers ##########################################################################################################
+
 
 def node_init(node_name, port, cpus=CPUS, memory=MEMORY):
     """ Creates a new node
@@ -105,6 +222,15 @@ def get_free_node():
         """
     return next(filter(lambda node: node['status'] == 'NEW', pod['nodes']), None)
 
+
+def get_online_node():
+    """ Gets an online node in the specified pod
+
+        :returns: an online node or None if there are not any
+        """
+    return next(filter(lambda node: node['status'] == 'ONLINE', pod['nodes']), None)
+
+
 def exec_job(node):
     """ Executes the job on a new thread, and append its output to a log file inside the node it's running on """
 
@@ -128,6 +254,25 @@ def exec_job(node):
     container.exec_run(["/bin/sh", "-c", f"echo '{output}' >> {log_file}"])
 
 
+def abort_job(node):
+    """ Aborts the job on the specified node """
+
+    # node is now NEW
+    node['status'] = 'NEW'
+
+    # once the manager dispatches the job, the ID of the job is printed to stdout
+    port = node['port']
+    print(f"Job with name is being aborted on port {port}.")
+
+    # abort the job
+    container = client.containers.get(node['id'])
+    container.stop()
+    container.kill()
+    container.start()
+    #container.pause()
+
+    print(f"Job running on port {port} was successfully aborted.")
+
 
 ### A2 functions #####################################################################################################
 
@@ -140,7 +285,7 @@ def cloud_init():
     # if it was requested to initialize a new cluster
     if request.method == 'POST':
         global POD_TYPE, JOB_TYPE, MAX_NODES, CPUS, MEMORY
-        global pod, initialized, logs
+        global pod, initialized, logs, elasticity, min_nodes, max_nodes
         print("Request to initialize main resource cluster.")
         # proxy type is provided as a JSON request
         if (not request.is_json) or ((request_data := request.get_json()) is None) or (len(request_data) != 5):
@@ -153,8 +298,13 @@ def cloud_init():
             result = 'Failure: no Dockerfile found in the working directory.'
         else:
             initialized = True
-            # we assume for the scope of this assignment that
-            # there is a new cluster for each run of the script
+            # # we reinitialize the cluster each time init is called
+            # # terminate all threads
+            # for thread in threading.enumerate():
+            #     if thread is threading.current_thread():
+            #         continue
+            #     thread.join()
+            # remove all containers
             for container in client.containers.list():
                 container.remove(v=True, force=True)
             # constant values related to the proxy type
@@ -164,6 +314,10 @@ def cloud_init():
             CPUS = request_data['cpus']
             MEMORY = request_data['memory']
             logs = []
+            # by default, elasticity is disabled
+            elasticity = False
+            min_nodes = 1.0
+            max_nodes = MAX_NODES
             # save the job
             job = {'id': JOB_TYPE,
                    'path': wrk_dir,
@@ -229,8 +383,11 @@ def cloud_register(node_name, port_number):
         print(f"Request to register new node {node_name} at port {port_number}.")
         global pod, MAX_NODES, POD_TYPE
         node_status = 'unknown'
+        # nodes can only be registered when elasticity is disabled
+        if elasticity:
+            result = 'Failure: elasticity must be disabled to register new nodes.'
         # if the limit of nodes registered for this pod has already been met, the command fails
-        if len(pod['nodes']) >= MAX_NODES:
+        elif len(pod['nodes']) >= MAX_NODES:
             result = 'Failure: pod is already at maximum resource capacity.'
         # if the node already exists, we return its status
         elif get_node_by_name(node_name) is not None:
@@ -301,8 +458,11 @@ def cloud_launch():
         print(f"Request to launch the job.")
         port = 'unknown'
         node_name = 'unknown'
+        # nodes can only be launched when elasticity is disabled
+        if elasticity:
+            result = 'Failure: elasticity must be disabled to launch a job.'
         # launch the first node that has 'NEW' status
-        if (node := get_free_node()) is None:
+        elif (node := get_free_node()) is None:
             result = 'Failure : no node available to serve the job.'
         else:
             pod['job']['was_launched'] = True
@@ -366,6 +526,7 @@ def cloud_pod_ls():
         if not initialized:
             result = 'Pod was not initialized yet.'
         else:
+            pod["cpu"] = get_avg_cpu()
             result = pod
         print(result)
         return jsonify(pod=pod)
@@ -410,7 +571,7 @@ def cloud_job_ls(node_id=None):
             result = "app.py"
         elif (node := get_node_by_id(node_id)) is None:
             result = f'Node with does not exist.'
-        elif node['status'] == "NEW":
+        elif node['status'] == 'NEW':
             result = f'Node is new; no assigned job.'
         else:
             result = f"app.py on port {node['port']}"
