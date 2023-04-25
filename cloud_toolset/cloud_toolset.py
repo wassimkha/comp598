@@ -232,6 +232,132 @@ def cloud_watch(url, command):
     except ValueError as e:
         print(f"An error occurred while parsing the response: {e}")
 
+def cloud_elasticity_disable(url, command):
+    try:
+        command_list = command.split()
+        if len(command_list) == 6: # cloud elasticity disable [POD_NAME] 
+            pod_name = command_list[3]
+            response = requests.post(f'{url}/cloudproxy/elasticity/disable/{pod_name}')
+            print(response)
+
+        else: #too many arguments
+            print("Invalid number of arguments.")
+
+    except requests.exceptions.RequestException as e:
+        print(f"An error occurred while sending the request: {e}")
+        
+    except ValueError as e:
+        print(f"An error occurred while parsing the response: {e}")
+
+def cloud_elasticity_enable(url, command):
+    try:
+        command_list = command.split()
+        if len(command_list) == 6: # cloud elasticity enable [POD_NAME] [lower_size] [upper_size]
+            pod_name = command_list[3]
+            lower_size = command_list[4]
+            upper_size = command_list[5]
+            response = requests.post(f'{url}/cloudproxy/elasticity/enable/{pod_name}/{lower_size}/{upper_size}')
+            print(response)
+
+        else: #too many arguments
+            print("Invalid number of arguments.")
+
+    except requests.exceptions.RequestException as e:
+        print(f"An error occurred while sending the request: {e}")
+        
+    except ValueError as e:
+        print(f"An error occurred while parsing the response: {e}")
+
+def cloud_upper_threshold(url, command):
+    try:
+        command_list = command.split()
+        if len(command_list) == 5: # cloud elasticity upper_threshold [POD_NAME] [value]
+            pod_name = command_list[3]
+            value = command_list[4]
+            response = requests.post(f'{url}/cloudproxy/elasticity/uper_threshold/{pod_name}/{value}')
+            print(response)
+
+        else: #too many arguments
+            print("Invalid number of arguments.")
+
+    except requests.exceptions.RequestException as e:
+        print(f"An error occurred while sending the request: {e}")
+        
+    except ValueError as e:
+        print(f"An error occurred while parsing the response: {e}")
+
+def cloud_lower_threshold(url, command):
+    try:
+        command_list = command.split()
+        if len(command_list) == 5: # cloud elasticity lower_threshold [POD_NAME] [value]
+            pod_name = command_list[3]
+            value = command_list[4]
+            response = requests.post(f'{url}/cloudproxy/elasticity/lower_threshold/{pod_name}/{value}')
+            print(response)
+
+        else: #too many arguments
+            print("Invalid number of arguments.")
+
+    except requests.exceptions.RequestException as e:
+        print(f"An error occurred while sending the request: {e}")
+        
+    except ValueError as e:
+        print(f"An error occurred while parsing the response: {e}")
+
+def main():
+    #RM url given as argument
+    #rm_url = sys.argv[1]
+    rm_url = 'http://10.140.17.120:5001'
+    while(1): #loop while taking input from client
+        command = input('$ ')
+        if command == 'cloud init':
+            #call function that invokes corresponding endpoint in RM
+            cloud_init(rm_url)
+        elif command.startswith ('cloud pod register'):
+            cloud_pod_register(rm_url, command)
+        elif command.startswith ('cloud pod rm'):
+            cloud_pod_rm(rm_url, command)
+        elif command.startswith('cloud register'):
+            cloud_register(rm_url, command)
+        elif command.startswith ('cloud rm'):
+            cloud_rm(rm_url, command)
+        elif command.startswith('cloud launch'):
+            cloud_launch(rm_url, command)
+        elif command.startswith('cloud resume'):
+            cloud_resume(rm_url, command)
+        elif command.startswith('cloud pause'):
+            cloud_pause(rm_url, command)
+        elif command.startswith('cloud watch'):
+            cloud_watch(rm_url, command)
+        elif command.startswith('cloud elasticity lower_threshold'):
+            cloud_lower_threshold(rm_url, command)
+        elif command.startswith('cloud elasticity upper_threshold'):
+            cloud_upper_threshold(rm_url, command)
+        elif command.startswith('cloud elasticity enable'):
+            cloud_elasticity_enable(rm_url, command)
+        elif command.startswith('cloud elasticity disable'):
+            cloud_elasticity_disable(rm_url, command)
+        else:
+            print("Invalid command entered! Please re-enter a valid command.")
+
+#entry point
+if __name__ == '__main__':
+    main()
+
+
+# elif command.startswith ('cloud abort'):
+        #     cloud_abort(rm_url, command)
+        #  #monitoring commands   
+        # elif command == ('cloud pod ls'):
+        #     cloud_pod_ls(rm_url, command)
+        # elif command.startswith ('cloud node ls'):
+        #     cloud_node_ls(rm_url, command)
+        # elif command.startswith ('cloud job ls'):
+        #     cloud_job_ls(rm_url, command)
+        # elif command.startswith ('cloud job log'):
+        #     cloud_job_log(rm_url, command)
+        # elif command.startswith ('cloud log node'):
+        #     cloud_log_node(rm_url, command)
 
 # #7. cloud abort JOB_ID
 # #aborts specified job
@@ -406,55 +532,3 @@ def cloud_watch(url, command):
         
 #     except ValueError as e:
 #         print(f"An error occurred while parsing the response: {e}")
-
-
-
-def main():
-    #RM url given as argument
-    #rm_url = sys.argv[1]
-    rm_url = 'http://10.140.17.120:5001'
-    while(1): #loop while taking input from client
-        command = input('$ ')
-        if command == 'cloud init':
-            #call function that invokes corresponding endpoint in RM
-            cloud_init(rm_url)
-        elif command.startswith ('cloud pod register'):
-            cloud_pod_register(rm_url, command)
-        elif command.startswith ('cloud pod rm'):
-            cloud_pod_rm(rm_url, command)
-        elif command.startswith('cloud register'):
-            cloud_register(rm_url, command)
-        elif command.startswith ('cloud rm'):
-            cloud_rm(rm_url, command)
-        elif command.startswith('cloud launch'):
-            cloud_launch(rm_url, command)
-        elif command.startswith('cloud resume'):
-            cloud_resume(rm_url, command)
-        elif command.startswith('cloud pause'):
-            cloud_pause(rm_url, command)
-        elif command.startswith('cloud watch'):
-            cloud_watch(rm_url, command)
-
-        # elif command.startswith ('cloud abort'):
-        #     cloud_abort(rm_url, command)
-        #  #monitoring commands   
-        # elif command == ('cloud pod ls'):
-        #     cloud_pod_ls(rm_url, command)
-        # elif command.startswith ('cloud node ls'):
-        #     cloud_node_ls(rm_url, command)
-        # elif command.startswith ('cloud job ls'):
-        #     cloud_job_ls(rm_url, command)
-        # elif command.startswith ('cloud job log'):
-        #     cloud_job_log(rm_url, command)
-        # elif command.startswith ('cloud log node'):
-        #     cloud_log_node(rm_url, command)
-        else:
-            print("Invalid command entered! Please re-enter a valid command.")
-
-
-
-#entry point
-if __name__ == '__main__':
-
-    main()
-
