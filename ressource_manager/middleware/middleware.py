@@ -444,17 +444,18 @@ def load_balancer_watch():
 #elasticity function
 def elasticity_light():
     while True:
+        print("in elasticity_light")
         global URL, ip_no_port, servers, port_list, elastic_mode
         get_serverPrams(0)
 
         global ip_proxy_light, lower_threshold_light, upper_threshold_light
-        response = requests.post(ip_proxy_light + '/cloudproxy/scale/' + lower_threshold_light + '/' + upper_threshold_light) 
+        response = requests.post(f'{ip_proxy_light}/cloudproxy/scale/{lower_threshold_light}/{upper_threshold_light}') 
         response_json = response.json()
-
+        print("lower light setting", lower_threshold_light, upper_threshold_light)
         # proxy's scale function will return two lists - nodes added or removed
 
         #TODO: modify based on proxy's implementation
-        added_nodes = response_json["add"]
+        added_nodes = response_json["added"]
 
         for node in added_nodes:
             node_name = node["name"]
@@ -477,7 +478,7 @@ def elasticity_light():
             print("node was successfully registered and port number occupied")
 
         ######removing
-        removed_nodes = response_json["remove"]
+        removed_nodes = response_json["removed"]
 
         for node in removed_nodes:
             node_name = node["name"]
@@ -655,17 +656,10 @@ def elasticity_upper_threshold(pod_id, value):
     
     #else - in elastic mode, simply set the global var
     if pod_id == "0":
-        print(lower_threshold_light, value, lower_threshold_light >= value)
-        if lower_threshold_light <= value:
-            return jsonify({'result': 'cannot set a upper threshold lower than the minimum'})
         upper_threshold_light = value
     elif pod_id == "1":
-        if lower_threshold_medium <= value:
-            return jsonify({'result': 'cannot set a upper threshold lower than the minimum'})
         upper_threshold_medium = value
     elif pod_id == "2":
-        if lower_threshold_heavy <= value:
-            return jsonify({'result': 'cannot set a upper threshold lower than the minimum'})
         upper_threshold_heavy = value
 
     return jsonify({'result': f'Upper threshold of the pod successfully set to value: {value}'})
@@ -690,14 +684,15 @@ def enable_elasticity(pod_id, lower_size, upper_size):
         #Start a thread to adjust the pod size based on CPU utilization
 
         requests.post(URL + '/cloudproxy/elasticity/' + lower_size + '/' + upper_size) 
-
-        if pod_id == 0:
+        print(pod_id, 0 == int(pod_id))
+        if int(pod_id) == 0:
+            print("here")
             light_thread = threading.Thread(target=elasticity_light)
             light_thread.start()
-        elif pod_id == 1:
+        elif int(pod_id) == 1:
             medium_thread = threading.Thread(target=elasticity_medium)
             medium_thread.start()
-        elif pod_id == 2:
+        elif int(pod_id) == 2:
             heavy_thread = threading.Thread(target=elasticity_heavy)
             heavy_thread.start()
 
@@ -707,6 +702,8 @@ def enable_elasticity(pod_id, lower_size, upper_size):
 @app.route('/cloudproxy/elasticity/disable/<pod_id>', methods=["POST"])
 def disable_elasticity(pod_id):
     #stop threading for that pod
+    global URL, ip_no_port, servers, port_list, elastic_mode
+    get_serverPrams(pod_id)
 
     global elastic_mode
     if elastic_mode is False:
@@ -716,7 +713,7 @@ def disable_elasticity(pod_id):
         elastic_mode = False
         update_elasticity(pod_id)
 
-    requests.post(URL + '/cloudproxy/disable/') 
+    requests.delete(URL + '/cloudproxy/elasticity') 
 
     if pod_id == 0:
         light_thread.cancel()

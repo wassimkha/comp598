@@ -235,7 +235,7 @@ def cloud_watch(url, command):
 def cloud_elasticity_disable(url, command):
     try:
         command_list = command.split()
-        if len(command_list) == 6: # cloud elasticity disable [POD_NAME] 
+        if len(command_list) == 4: # cloud elasticity disable [POD_NAME] 
             pod_name = command_list[3]
             response = requests.post(f'{url}/cloudproxy/elasticity/disable/{pod_name}').json()
             print(response)

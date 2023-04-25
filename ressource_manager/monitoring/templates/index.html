@@ -2,7 +2,7 @@
 <html>
   <head>
     <title>Cloud Management System</title>
-    <meta http-equiv="refresh" content="1" />
+    <!-- <meta http-equiv="refresh" content="1" /> -->
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -58,7 +58,10 @@
         <th>Number of Nodes</th>
         <th>Max Nodes</th>
         <th>Paused</th>
-        <th>cpu</th>
+        <th>Elasticity Enabeled</th>
+        <th>CPU</th>
+        <th>CPU Threshold</th>
+        <th>Min-Max Nodes</th>
         <th>See The Nodes</th>
       </tr>
       {% for pod in cloud_pods %}
@@ -68,7 +71,10 @@
         <td>{{ pod.num_nodes }}</td>
         <td>{{ pod.max_nodes }}</td>
         <td>{{ pod.paused }}</td>
+        <td>{{ pod.elasticity_enabled }}</td>
         <td>{{ pod.cpu }}</td>
+        <td>{{ pod.cpu_range }}</td>
+        <td>{{ pod.elasticity_range }}</td>
         <td><a href="/cloud/node/ls/{{ pod.id }}">nodes</a></td>
       </tr>
       {% endfor %}

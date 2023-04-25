@@ -52,23 +52,23 @@ logs = []
 # /cloudproxy/elasticity/disable - pod's elasticity disabled - back to A2's constraints
 # /scale/<lower_threshold>/<upper_threshold> - add or remove nodes based on constraint
 
+# variables for the elasticity
+min_nodes = 0.0
+max_nodes = 1.0
+elasticity = False
+max_cpu = 0.0
+min_cpu = 0.0
+
 # API endpoint that returns average cpu utilization
 @app.route('/cloudproxy/monitor', methods=["GET"])
 def monitor():
     if request.method == 'GET':
         # if there are no containers
-        if len(pod['nodes']) == 0:
+        if pod and 'nodes' in pod and len(pod['nodes']) == 0:
             return jsonify({'cpu_usage': None, 'mem_percent': None})
         # otherwise get the average and return it
         cpu_usage = get_avg_cpu()
-        return jsonify({'cpu_usage': cpu_usage, 'mem_percent': 0.0})
-
-
-# variables for the elasticity
-min_nodes = 0.0
-max_nodes = 1.0
-elasticity = False
-
+        return jsonify({'cpu_usage': cpu_usage, 'mem_percent': 0.0, "min_nodes": min_nodes, "max_nodes": max_nodes})
 
 # pod's elasticity enabled, update the pod's lower and upper size
 @app.route('/cloudproxy/elasticity/<lower_size>/<upper_size>', methods=["POST"])  # TODO no verbs in URLs
@@ -100,40 +100,47 @@ def disable_elasticity():
 def scale(lower_threshold, upper_threshold):
     if request.method == 'POST':
         print(f"Request to scale the number of pods.")
-        global min_nodes, max_nodes, elasticity
+        global min_nodes, max_nodes, elasticity, max_cpu, min_cpu
         currently_online = len([node for node in pod['nodes'] if node['status'] == 'ONLINE'])
         removed = []
         added = []
-        upper_threshold = float(upper_threshold)
-        lower_threshold = float(lower_threshold)
+        max_cpu = float(upper_threshold)
+        min_cpu = float(lower_threshold)
         # we only scale if elasticity is enabled
         if not elasticity:
             result = 'Failure : elasticity needs to be enabled for the pods to be scaled.'
         # ensure the values are valid
-        elif (upper_threshold < lower_threshold) or (lower_threshold <= 0) or (upper_threshold > MAX_NODES):
+        elif (max_cpu < min_cpu) or (min_cpu <= 0) or (max_cpu > MAX_NODES):
             result = 'Failure : invalid threshold values.'
         else:
             result = 'Success'
             # 1. get the average cpu utilization
             avg_cpu_usage = get_avg_cpu()
+            print("currently online with avg_cpu_usage", avg_cpu_usage, avg_cpu_usage > max_cpu)
             # 2. compare it against the upper and lower thresholds to get the number of containers to add or remove
-            if avg_cpu_usage > upper_threshold:
-                scaling = min(((avg_cpu_usage - upper_threshold) / upper_threshold) + 1, max_nodes - currently_online)
-                # 3a. trigger the addition actions
-                for i in range(int(scaling)):
+            if avg_cpu_usage > max_cpu:
+                while ((avg_cpu_usage := get_avg_cpu()) > max_cpu): 
+                    # 3a. trigger the addition actions
+                    print("looking for free node")
                     if (node := get_free_node()) is None:
                         break
-                    added.append(node['name'])
+                    added.append(node)
+                    print("free node found, exec job")
+                    #adjust cpu usage
+                    currently_online = len([node for node in pod['nodes'] if node['status'] == 'ONLINE'])
+                    container = client.containers.get(node["id"])
+                    container.update(cpu_shares=int(1024/(currently_online + 1)))
                     # execute the job
                     thr = threading.Thread(target=exec_job, args=(node,))
                     thr.start()
-            elif avg_cpu_usage < lower_threshold:
-                scaling = min((lower_threshold - avg_cpu_usage) / lower_threshold, currently_online - min_nodes)
+            elif avg_cpu_usage < min_cpu:
+                currently_online = len([node for node in pod['nodes'] if node['status'] == 'ONLINE'])
+                scaling = min((min_cpu - avg_cpu_usage) / min_cpu, currently_online - min_nodes)
                 # 3b. trigger the deletion actions
                 for i in range(int(scaling)):
                     if (node := get_online_node()) is None:
                         break
-                    removed.append(node['name'])
+                    removed.append(node)
                     # abort the job
                     thr = threading.Thread(target=abort_job, args=(node,))
                     thr.start()
@@ -145,7 +152,10 @@ def scale(lower_threshold, upper_threshold):
 def get_avg_cpu():
     # for each container
     cpu_usage = 0.0
-    for container in client.containers.list():
+    currently_online = [node for node in pod['nodes'] if node['status'] == 'ONLINE']
+    total = len(currently_online)
+    for node in currently_online:
+        container = client.containers.get(node["id"])
         # get cpu usage statistics
         stats = container.stats(stream=False)
         cpu_stats = stats["cpu_stats"]
@@ -156,8 +166,7 @@ def get_avg_cpu():
         # add all cpu usage of all containers
         cpu_usage += delta_t / sys_delta_t * 100.0
     # get average cpu usage of the pod
-    if len(client.containers.list()) != 0:
-        cpu_usage /= len(client.containers.list())
+    cpu_usage /= max(1, total)
     return cpu_usage
 
 
@@ -177,7 +186,7 @@ def node_init(node_name, port, cpus=CPUS, memory=MEMORY):
     # linux Alpine image is running the containers, each has a specific CPU, memory, and storage limit factor
     client.containers.run(image=img, ports={'5000/tcp': port}, stop_signal='SIGINT',
                           detach=True, name=node_name, stdin_open=True, tty=True,
-                          cap_add='SYS_ADMIN', cpu_shares=int(cpus * 1024), mem_limit=memory)
+                          cap_add='SYS_ADMIN', nano_cpus=(cpus * 1e9), mem_limit=memory)
     container = client.containers.get(node_name)
     # make a directory for the logs
     container.exec_run(f"mkdir -p {LOG_DIR}")
@@ -526,7 +535,12 @@ def cloud_pod_ls():
         if not initialized:
             result = 'Pod was not initialized yet.'
         else:
+            global min_cpu, max_cpu, min_nodes, max_nodes
+            print()
             pod["cpu"] = get_avg_cpu()
+            pod["elasticity_range"] = f'{int(min_nodes)} - {int(max_nodes)}'
+            pod["elasticity_enabled"] = elasticity
+            pod["cpu_range"] = f'{min_cpu} - {max_cpu}'
             result = pod
         print(result)
         return jsonify(pod=pod)
