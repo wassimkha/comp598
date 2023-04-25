@@ -643,7 +643,7 @@ def elasticity_lower_threshold(pod_id, value):
 
    
 # cloud elasticity upper_threshold [POD_NAME] [value]
-@app.route('/cloudproxy/elasticity/uper_threshold/<pod_id>/<value>', methods=["POST"])
+@app.route('/cloudproxy/elasticity/upper_threshold/<pod_id>/<value>', methods=["POST"])
 def elasticity_upper_threshold(pod_id, value):
     global URL, ip_no_port, servers, port_list, elastic_mode
     global upper_threshold_light, upper_threshold_medium, upper_threshold_heavy
