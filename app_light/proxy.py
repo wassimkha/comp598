@@ -45,7 +45,6 @@ CPUS = 0
 MEMORY = ""
 logs = []
 
-
 ##############################For A3 - in case helpful#############################
 # Endpoint ts to implement
 # /cloudproxy/elasticity/enable/<lower_size>/<upper_size> - pod's elasticity enabled, update the pod's lower and upper size
@@ -59,6 +58,7 @@ elasticity = False
 max_cpu = 0.0
 min_cpu = 0.0
 
+
 # API endpoint that returns average cpu utilization
 @app.route('/cloudproxy/monitor', methods=["GET"])
 def monitor():
@@ -70,8 +70,9 @@ def monitor():
         cpu_usage = get_avg_cpu()
         return jsonify({'cpu_usage': cpu_usage, 'mem_percent': 0.0, "min_nodes": min_nodes, "max_nodes": max_nodes})
 
+
 # pod's elasticity enabled, update the pod's lower and upper size
-@app.route('/cloudproxy/elasticity/<lower_size>/<upper_size>', methods=["POST"])  # TODO no verbs in URLs
+@app.route('/cloudproxy/elasticity/<lower_size>/<upper_size>', methods=["POST"])
 def enable_elasticity(lower_size, upper_size):
     if request.method == 'POST':
         print(f"Enabling elasticity.")
@@ -81,7 +82,6 @@ def enable_elasticity(lower_size, upper_size):
         # update the lower_size and upper_size
         min_nodes = float(lower_size)
         max_nodes = float(upper_size)
-        # TODO scale the pods so they are within range ?
         return jsonify({'result': 'Success'})
 
 
@@ -95,8 +95,11 @@ def disable_elasticity():
         elasticity = False
         return jsonify({'result': 'Success'})
 
+
+import math
+
 # pod's elasticity enabled, update the pod's lower and upper size
-@app.route('/cloudproxy/scale/<lower_threshold>/<upper_threshold>', methods=["POST"]) # TODO no verbs in URLs
+@app.route('/cloudproxy/scale/<lower_threshold>/<upper_threshold>', methods=["POST"])
 def scale(lower_threshold, upper_threshold):
     if request.method == 'POST':
         print(f"Request to scale the number of pods.")
@@ -119,31 +122,44 @@ def scale(lower_threshold, upper_threshold):
             print("currently online with avg_cpu_usage", avg_cpu_usage, avg_cpu_usage > max_cpu)
             # 2. compare it against the upper and lower thresholds to get the number of containers to add or remove
             if avg_cpu_usage > max_cpu:
-                while ((avg_cpu_usage := get_avg_cpu()) > max_cpu): 
-                    # 3a. trigger the addition actions
-                    print("looking for free node")
+                # 3a. trigger the addition actions
+                # we want  ( average * curr / new ) <= upper   implies   ( average * curr / upper ) <= new
+                online_after_scaling = min(math.ceil(avg_cpu_usage * currently_online / max_cpu), MAX_NODES)
+                num_of_nodes_to_add = online_after_scaling - currently_online
+                # assign jobs to the all the nodes to add
+                for i in range(num_of_nodes_to_add):
+                    # make sure there is a free node available
                     if (node := get_free_node()) is None:
                         break
+                    # this node will now go online
                     added.append(node)
-                    print("free node found, exec job")
-                    #adjust cpu usage
-                    currently_online = len([node for node in pod['nodes'] if node['status'] == 'ONLINE'])
-                    container = client.containers.get(node["id"])
-                    container.update(cpu_shares=int(1024/(currently_online + 1)))
                     # execute the job
                     thr = threading.Thread(target=exec_job, args=(node,))
                     thr.start()
+                # NOTE : the CPU usage will lower naturally because the demands from the load balancer will
+                #        be shared amongst more nodes that's it
+
+                # update the CPU usage limit for all nodes
+                # for container in client.containers.list():
+                #     container.update(cpu_quota=int(100000*1*CPUS/online_after_scaling))
             elif avg_cpu_usage < min_cpu:
-                currently_online = len([node for node in pod['nodes'] if node['status'] == 'ONLINE'])
-                scaling = min((min_cpu - avg_cpu_usage) / min_cpu, currently_online - min_nodes)
-                # 3b. trigger the deletion actions
-                for i in range(int(scaling)):
+                # 3a. trigger the deletion actions
+                # we want  ( average * curr / new ) >= lower  implies   ( average * curr / lower ) >= new
+                online_after_scaling = max(math.floor(avg_cpu_usage * currently_online / max_cpu), 1)
+                num_of_nodes_to_remove = currently_online - online_after_scaling
+                # assign jobs to the all the nodes to add
+                for i in range(num_of_nodes_to_remove):
+                    # make sure there is a free node available
                     if (node := get_online_node()) is None:
                         break
+                    # this node will now go offline (new)
                     removed.append(node)
                     # abort the job
                     thr = threading.Thread(target=abort_job, args=(node,))
                     thr.start()
+
+                # NOTE : the individual CPU usage will go up naturally because the demands from the load
+                #        balancer will be shared amongst fewer nodes that's it
         print(result)
         return jsonify({'result': result, 'removed': removed, 'added': added})
 
@@ -186,7 +202,10 @@ def node_init(node_name, port, cpus=CPUS, memory=MEMORY):
     # linux Alpine image is running the containers, each has a specific CPU, memory, and storage limit factor
     client.containers.run(image=img, ports={'5000/tcp': port}, stop_signal='SIGINT',
                           detach=True, name=node_name, stdin_open=True, tty=True,
-                          cap_add='SYS_ADMIN', nano_cpus=(cpus * 1e9), mem_limit=memory)
+                          cap_add='SYS_ADMIN', mem_limit=memory,
+                          cpuset_cpus='0', cpu_shares=int(cpus * 1024))
+    # cpu_quota = cpu_period * (number of CPUs assigned to the container) * (desired CPU usage percentage)
+
     container = client.containers.get(node_name)
     # make a directory for the logs
     container.exec_run(f"mkdir -p {LOG_DIR}")
@@ -278,7 +297,7 @@ def abort_job(node):
     container.stop()
     container.kill()
     container.start()
-    #container.pause()
+    # container.pause()
 
     print(f"Job running on port {port} was successfully aborted.")
 
