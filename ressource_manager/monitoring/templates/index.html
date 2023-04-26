@@ -60,6 +60,7 @@
         <th>Paused</th>
         <th>Elasticity Enabeled</th>
         <th>CPU</th>
+        <th>Memory</th>
         <th>CPU Threshold</th>
         <th>Min-Max Nodes</th>
         <th>See The Nodes</th>
@@ -73,6 +74,7 @@
         <td>{{ pod.paused }}</td>
         <td>{{ pod.elasticity_enabled }}</td>
         <td>{{ pod.cpu }}</td>
+        <td>{{ pod.memory }}</td>
         <td>{{ pod.cpu_range }}</td>
         <td>{{ pod.elasticity_range }}</td>
         <td><a href="/cloud/node/ls/{{ pod.id }}">nodes</a></td>
