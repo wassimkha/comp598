@@ -117,14 +117,10 @@ def scale(lower_threshold, upper_threshold):
         # we only scale if elasticity is enabled
         if not elasticity:
             result = 'Failure : elasticity needs to be enabled for the pods to be scaled.'
-        # ensure the values are valid
-        elif (max_cpu < min_cpu) or (min_cpu < 0.0) or (max_cpu > CPUS):
-            result = 'Failure : invalid threshold values.'
         else:
             result = 'Success'
             # 1. get the average cpu utilization
             avg_cpu_usage = get_avg_cpu()
-            print("currently online with avg_cpu_usage", avg_cpu_usage, avg_cpu_usage > max_cpu)
             # 2. compare it against the upper and lower thresholds to get the number of containers to add or remove
             if avg_cpu_usage > max_cpu:
                 # 3a. trigger the addition actions
@@ -186,8 +182,7 @@ def get_avg_cpu():
         delta = float(curr_stats["cpu_usage"]["total_usage"]) - float(prev_stats["cpu_usage"]["total_usage"])
         sys_delta = float(curr_stats["system_cpu_usage"]) - float(prev_stats["system_cpu_usage"])
         # account for the number of CPUS when computing the percentage
-        num_cpus = len(curr_stats["cpu_usage"]["percpu_usage"])
-        percentage = (delta / sys_delta) * num_cpus * 100
+        percentage = (delta / sys_delta) * 100
         # add all cpu usage of all containers
         cpu_usage += percentage
     # get average cpu usage of the pod
@@ -211,7 +206,7 @@ def node_init(node_name, port, cpus=CPUS, memory=MEMORY):
 
     # linux Alpine image is running the containers, each has a specific CPU, memory, and storage limit factor
     client.containers.run(image=img, ports={'5000/tcp': port},
-                          command=['python', 'app.py', node_name],
+                          # command=['python', 'app.py', node_name],
                           stop_signal='SIGINT',
                           detach=True, name=node_name, stdin_open=True, tty=True,
                           cap_add='SYS_ADMIN', mem_limit=memory,
@@ -277,26 +272,26 @@ def exec_job(node):
     # node is now ONLINE
     node['status'] = "ONLINE"
 
-    # # once the manager dispatches the job, the ID of the job is printed to stdout
-    # port = node['port']
-    # print(f"Job with is being dispatched on port {port}.")
-    #
-    # # execute the job
-    # container = client.containers.get(node['name'])
-    # exit_code, output = container.exec_run(['python', 'app.py'], stdin=True)
-    #
-    # # if the job was aborted
-    # if exit_code != 0:
-    #     print(f"Job on port {port} was aborted during execution.")
-    #     return
-    #
-    # # save the output to a log file
-    # date_time = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-    # log_file = f'{LOG_DIR}/{JOB_TYPE.lower()}_{port}.log'
-    # output = io.StringIO(output.decode()).getvalue()
-    # container.exec_run(["/bin/sh", "-c", f"echo 'LOG - {JOB_TYPE.lower()} on port {port}' > {log_file}"])
-    # container.exec_run(["/bin/sh", "-c", f"echo '({date_time})' >> {log_file}"])
-    # container.exec_run(["/bin/sh", "-c", f"echo '{output}' >> {log_file}"])
+    # once the manager dispatches the job, the ID of the job is printed to stdout
+    port = node['port']
+    print(f"Job with is being dispatched on port {port}.")
+
+    # execute the job
+    container = client.containers.get(node['name'])
+    exit_code, output = container.exec_run(['python', 'app.py'], stdin=True)
+
+    # if the job was aborted
+    if exit_code != 0:
+        print(f"Job on port {port} was aborted during execution.")
+        return
+
+    # save the output to a log file
+    date_time = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+    log_file = f'{LOG_DIR}/{JOB_TYPE.lower()}_{port}.log'
+    output = io.StringIO(output.decode()).getvalue()
+    container.exec_run(["/bin/sh", "-c", f"echo 'LOG - {JOB_TYPE.lower()} on port {port}' > {log_file}"])
+    container.exec_run(["/bin/sh", "-c", f"echo '({date_time})' >> {log_file}"])
+    container.exec_run(["/bin/sh", "-c", f"echo '{output}' >> {log_file}"])
 
 
 def abort_job(node):
