@@ -239,8 +239,8 @@ def node_init(node_name, port, cpus=CPUS, memory=MEMORY):
     container = client.containers.get(node_name)
 
     # make a directory for the logs
-    container.exec_run(f"mkdir -p {LOG_DIR}")
-    container.exec_run(f'touch {LOG_DIR}/{JOB_TYPE.lower()}_{port}.log')
+    # container.exec_run(f"mkdir -p {LOG_DIR}")
+    # container.exec_run(f'touch {LOG_DIR}/{JOB_TYPE.lower()}_{port}.log')
 
     # add the new node to the pod; initially, it has the “NEW” status
     node_id = container.__getattribute__('id')
@@ -361,13 +361,7 @@ def cloud_init():
             result = 'Failure: no Dockerfile found in the working directory.'
         else:
             initialized = True
-            # # we reinitialize the cluster each time init is called
-            # # terminate all threads
-            # for thread in threading.enumerate():
-            #     if thread is threading.current_thread():
-            #         continue
-            #     thread.join()
-            # remove all containers
+            # we reinitialize the cluster each time init is called
             for container in client.containers.list():
                 container.remove(v=True, force=True)
             # constant values related to the proxy type
