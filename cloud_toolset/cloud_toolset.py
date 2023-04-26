@@ -217,7 +217,7 @@ def cloud_watch(url, command):
             seconds = command_list[2]
             print(f"watching the load balancer incoming requests for {seconds}s")
             for i in range(int(seconds)):
-                response = requests.get(f'{url}/cloudproxy/loadbalencer/watch').json()
+                response = requests.get(f'{url}/cloudproxy/loadbalancer/watch').json()
                 print(f'{response["response"]}')
                 time.sleep(1)
             
