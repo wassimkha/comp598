@@ -5,7 +5,7 @@
 
 ### Elastic Manager
 
-The Elasticity Manager is activated when the Cloud User enables the "Elastic Mode" by calling a new REST endpoint in the Resource Manager. The Cloud User can enable and disable the Elasticity Manager for a given pod, which specifies the pod size in terms of the node size range. The Elasticity Manager uses the upper and lower threshold values specified by the Cloud User to create a valid allocation.
+The Elasticity Manager is activated when the Cloud User enables the "Elastic Mode". The Cloud User can enable and disable the Elasticity Manager for a given pod, which specifies the pod size in terms of the node size range. The Elasticity Manager uses the upper and lower threshold values specified by the Cloud User to create a valid allocation.
 
 ### Simple Cloud Manager
 
