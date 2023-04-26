@@ -1,10 +1,16 @@
 # Overview 
-This milestone adds a load balancer to the simple cloud system previously developed in milestone 1. The load balancer distributes work and resources to maximize resource utilization for the cloud and minimize response time for clients based on the balance option specified.
+ In this project's third milestone, the resource manager is made elastic, meaning it can automatically adjust resource allocation based on user demand. The user specifies the limits of elastic scaling and the resource manager adjusts resource allocation within those limits.
 
 In this assignment, the cloud system is required to support three pods, each with its own Resource Proxy. The pods are designed to run in different virtual machines and have a limit on the number of nodes that can be added to them. The heavy pod can have up to 10 nodes, the medium pod can have up to 15 nodes, and the light pod can have up to 20 nodes. The nodes in the different pods will have different sizes with varying CPU and memory limits, and the resource proxies will be used to manage the resources allocated to each pod. The resource proxies will be responsible for assigning nodes to pods and ensuring that the nodes are not overloaded with more resources than they can handle.
 
+## Class Structure Overview 
 
-## Class Structure Overview
+### Elastic Manager
+
+The Elasticity Manager is activated when the Cloud User enables the "Elastic Mode" by calling a new REST endpoint in the Resource Manager. The Cloud User can enable and disable the Elasticity Manager for a given pod, which specifies the pod size in terms of the node size range. The Elasticity Manager uses the upper and lower threshold values specified by the Cloud User to create a valid allocation.
+
+### Simple Cloud Manager
+
 The Simple Cloud Manager has the following classes:
 
 * Node: represents a machine in the simple cloud (docker container). 
@@ -13,7 +19,7 @@ The Simple Cloud Manager has the following classes:
 * Cloud Dashboard: a component of the ResourceManager or a standalone web server that is connected to the ResourceManager.
 * Cloud Toolset: commands that are supported by the ResourceManager.
 * Job: This milestone requires three types of jobs: heavy, medium, and light. Each job is accessible through a URL endpoint and can be invoked by sending an HTTP request to the load balancer.
-* Proxy: Handles requests to by carrying out the docker commands to manipulate the docker containers (there are 3 proxies 
+* Proxy: Handles requests to by carrying out the docker commands to manipulate the docker containers (there are 3 proxies)
 * Load balancer: Using HAProxy, the load balancer distributes incoming requests to the nodes in the pods based on their load. The goal is to test the load balancer's ability to spread the workload as required by injecting requests from the End user at different rates using an exponential distribution.
 
 **Our VMs structure** (note: comp598 is a shared folder in all VMs): 
@@ -72,6 +78,7 @@ First, cd into private folder `cs598-group07-key` containing the private key
 3. Start the monitoring by running `sudo python3 ressource_manager.py`
 4. To view the status of different cloud components (status/name/id of nodes and pods, etc) via a web interface, please use the [url to dashboard](https://winter2023-comp598-group07-02.cs.mcgill.ca/)
 
+
 ## Executing the Cloud Infrastructure as Cloud User
 To execute the cloud infrastructure, follow these steps:
 
@@ -80,9 +87,15 @@ To execute the cloud infrastructure, follow these steps:
 3. Use the cloud toolset to execute commands and launch jobs on the cluster by running `python3 comp598/cloud_toolset/cloud_toolset.py` 
 4. Enter the command `cloud init` to initialize 3 pods and setup all cloud services. 
 5. The following commands are supported where POD_ID = 0 (light), 1 (medium) or 2 (heavy)
-* `cloud pod register POD_NAME`: Registers a new pod with the specified name to the main resource cluster. Note: pod names must be unique. Not supported for this milestone.
-* `cloud pod rm POD_NAME`: Removes the specified pod. Not supported for this milestone
 * `cloud register NODE_NAME POD_ID`: Creates a new node and registers it to the specified pod ID.
+
+### Using the Elasticity Manager
+* `cloud elasticity enable [POD_NAME] [lower_size] [upper_size]`: enables the elasticity for the given pod. The Cloud User specifies the pod size in terms of node size range. The elastic manager is responsible for picking the correct pod size (I.e., the number of nodes) at run time. The elastic manager uses the upper and lower threshold values specified by the Cloud User as the allowed ranges in creating a valid allocation.
+* `cloud elasticity disable [POD_NAME]`: disables the elasticity manager for the given pod. When the elasticity manager is disabled, the cloud management commands (Register and Launch) become available to the Cloud User. By default the elasticity management is disabled for a pod.
+* `cloud elasticity lower_threshold [POD_NAME] [value]`: Settings the lower threshold of the CPU value for the given pod
+* `cloud elasticity upper_threshold [POD_NAME] [value]`:  Settings the upper threshold of the CPU value for the given pod
+
+### Commands available when elasticity manager is deactivated
 * `cloud rm NODE_NAME POD_ID`: removes the specified node from the specified POD_ID
 * `cloud launch POD_ID`: picks up the first node with the “NEW” status in the specified POD_ID and switches its status to “ONLINE”, the node starts its HTTP web server. Load balancer notified if POD_ID is up and running
 * `cloud resume POD_ID`: Resumes the specified POD_ID
@@ -101,6 +114,4 @@ To execute the cloud infrastructure, follow these steps:
 ## Cloud Dashboard
 To view the status of different cloud components (status/name/id of nodes and pods, etc) via a web interface, please use the [url to dashboard](https://winter2023-comp598-group07-02.cs.mcgill.ca/)
 
-## Throughput and Analytics
-To view our report with experimental results on the average throughput and latency of requests on the 3 pods using different load balancing algorithms, please see our report **Experiment_Report.pdf**
 
