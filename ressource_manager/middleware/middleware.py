@@ -507,13 +507,13 @@ def elasticity_medium():
         get_serverPrams(1)
 
         global ip_proxy_medium, lower_threshold_medium, upper_threshold_medium
-        response = requests.post(ip_proxy_medium + '/cloudproxy/scale/' + lower_threshold_medium + '/' + upper_threshold_medium) 
+        response = requests.post(f'{ip_proxy_medium}/cloudproxy/scale/{lower_threshold_medium}/{upper_threshold_medium}') 
         response_json = response.json()
 
         # proxy's scale function will return two lists - nodes added or removed
 
         #TODO: modify based on proxy's implementation
-        added_nodes = response_json["add"]
+        added_nodes = response_json["added"]
 
         for node in added_nodes:
             node_name = node["name"]
@@ -536,7 +536,7 @@ def elasticity_medium():
             print("node was successfully registered and port number occupied")
 
         ######removing
-        removed_nodes = response_json["remove"]
+        removed_nodes = response_json["removed"]
 
         for node in removed_nodes:
             node_name = node["name"]
@@ -565,13 +565,15 @@ def elasticity_heavy():
         get_serverPrams(2)
 
         global ip_proxy_heavy, lower_threshold_heavy, upper_threshold_heavy
-        response = requests.post(ip_proxy_heavy + '/cloudproxy/scale/' + lower_threshold_heavy + '/' + upper_threshold_heavy) 
+        response = requests.post(f'{ip_proxy_heavy}/cloudproxy/scale/{lower_threshold_heavy}/{upper_threshold_heavy}') 
         response_json = response.json()
+
+        print("lower light setting", lower_threshold_heavy, upper_threshold_heavy)
 
         # proxy's scale function will return two lists - nodes added or removed
 
         #TODO: modify based on proxy's implementation
-        added_nodes = response_json["add"]
+        added_nodes = response_json["added"]
 
         for node in added_nodes:
             node_name = node["name"]
@@ -594,7 +596,7 @@ def elasticity_heavy():
             print("node was successfully registered and port number occupied")
 
         ######removing
-        removed_nodes = response_json["remove"]
+        removed_nodes = response_json["removed"]
 
         for node in removed_nodes:
             node_name = node["name"]
@@ -636,7 +638,7 @@ def elasticity_lower_threshold(pod_id, value):
         lower_threshold_light = value
     elif pod_id == "1":
         lower_threshold_medium = value
-    elif pod_id == 2:
+    elif pod_id == "2":
         lower_threshold_heavy = value
 
     return jsonify({'result': f'Lower threshold of the pod successfully set to value: {value}'})
