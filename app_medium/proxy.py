@@ -52,8 +52,8 @@ logs = []
 # /scale/<lower_threshold>/<upper_threshold> - add or remove nodes based on constraint
 
 # variables for the elasticity
-min_nodes = 0.0
-max_nodes = 1.0
+min_nodes = 0
+max_nodes = MAX_NODES
 elasticity = False
 max_cpu = 0.0
 min_cpu = 0.0
@@ -77,12 +77,17 @@ def enable_elasticity(lower_size, upper_size):
     if request.method == 'POST':
         print(f"Enabling elasticity.")
         global min_nodes, max_nodes, elasticity
-        # enable elasticity (disable register and launch)
-        elasticity = True
-        # update the lower_size and upper_size
-        min_nodes = float(lower_size)
-        max_nodes = float(upper_size)
-        return jsonify({'result': 'Success'})
+        # ensure the values are valid
+        if (int(lower_size) < 0) or (int(upper_size) > MAX_NODES):
+            result = 'Failure : invalid bounds.'
+        else:
+            result = 'Success'
+            # enable elasticity (disable register and launch)
+            elasticity = True
+            # update the lower_size and upper_size
+            min_nodes = int(lower_size)
+            max_nodes = int(upper_size)
+        return jsonify({'result': result})
 
 
 # add or remove nodes based on constraint
@@ -113,7 +118,7 @@ def scale(lower_threshold, upper_threshold):
         if not elasticity:
             result = 'Failure : elasticity needs to be enabled for the pods to be scaled.'
         # ensure the values are valid
-        elif (max_cpu < min_cpu) or (min_cpu <= 0) or (max_cpu > MAX_NODES):
+        elif (max_cpu < min_cpu) or (min_cpu < 0.0) or (max_cpu > CPUS):
             result = 'Failure : invalid threshold values.'
         else:
             result = 'Success'
@@ -145,7 +150,7 @@ def scale(lower_threshold, upper_threshold):
             elif avg_cpu_usage < min_cpu:
                 # 3a. trigger the deletion actions
                 # we want  ( average * curr / new ) >= lower  implies   ( average * curr / lower ) >= new
-                online_after_scaling = max(math.floor(avg_cpu_usage * currently_online / max_cpu), 1)
+                online_after_scaling = max(math.floor(avg_cpu_usage * currently_online / max_cpu), min_nodes)
                 num_of_nodes_to_remove = currently_online - online_after_scaling
                 # assign jobs to the all the nodes to add
                 for i in range(num_of_nodes_to_remove):
@@ -157,6 +162,7 @@ def scale(lower_threshold, upper_threshold):
                     # abort the job
                     thr = threading.Thread(target=abort_job, args=(node,))
                     thr.start()
+                    thr.join()
 
                 # NOTE : the individual CPU usage will go up naturally because the demands from the load
                 #        balancer will be shared amongst fewer nodes that's it
@@ -172,18 +178,22 @@ def get_avg_cpu():
     total = len(currently_online)
     for node in currently_online:
         container = client.containers.get(node["id"])
-        # get cpu usage statistics
+        # get cpu usage statistics from the current and last read
         stats = container.stats(stream=False)
-        cpu_stats = stats["cpu_stats"]
-        previous_stats = stats["precpu_stats"]
+        curr_stats = stats["cpu_stats"]
+        prev_stats = stats["precpu_stats"]
         # get the total usage
-        delta_t = float(cpu_stats["cpu_usage"]["total_usage"]) - float(previous_stats["cpu_usage"]["total_usage"])
-        sys_delta_t = float(cpu_stats["system_cpu_usage"]) - float(previous_stats["system_cpu_usage"])
+        delta = float(curr_stats["cpu_usage"]["total_usage"]) - float(prev_stats["cpu_usage"]["total_usage"])
+        sys_delta = float(curr_stats["system_cpu_usage"]) - float(prev_stats["system_cpu_usage"])
+        # account for the number of CPUS when computing the percentage
+        num_cpus = len(curr_stats["cpu_usage"]["percpu_usage"])
+        percentage = (delta / sys_delta) * num_cpus * 100
         # add all cpu usage of all containers
-        cpu_usage += delta_t / sys_delta_t * 100.0
+        cpu_usage += percentage
     # get average cpu usage of the pod
     cpu_usage /= max(1, total)
-    return cpu_usage
+    # round the answer so it's prettier
+    return round(cpu_usage, 2)
 
 
 ### helpers ##########################################################################################################
@@ -267,11 +277,16 @@ def exec_job(node):
 
     # once the manager dispatches the job, the ID of the job is printed to stdout
     port = node['port']
-    print(f"Job with name is being dispatched on port {port}.")
+    print(f"Job with is being dispatched on port {port}.")
 
     # execute the job
     container = client.containers.get(node['name'])
     exit_code, output = container.exec_run(['python', 'app.py'], stdin=True)
+
+    # if the job was aborted
+    if exit_code != 0:
+        print(f"Job on port {port} was aborted during execution.")
+        return
 
     # save the output to a log file
     date_time = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
@@ -294,7 +309,6 @@ def abort_job(node):
 
     # abort the job
     container = client.containers.get(node['id'])
-    container.stop()
     container.kill()
     container.start()
     # container.pause()
@@ -344,7 +358,7 @@ def cloud_init():
             logs = []
             # by default, elasticity is disabled
             elasticity = False
-            min_nodes = 1.0
+            min_nodes = 0
             max_nodes = MAX_NODES
             # save the job
             job = {'id': JOB_TYPE,

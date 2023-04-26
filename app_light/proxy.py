@@ -178,18 +178,22 @@ def get_avg_cpu():
     total = len(currently_online)
     for node in currently_online:
         container = client.containers.get(node["id"])
-        # get cpu usage statistics
+        # get cpu usage statistics from the current and last read
         stats = container.stats(stream=False)
-        cpu_stats = stats["cpu_stats"]
-        previous_stats = stats["precpu_stats"]
+        curr_stats = stats["cpu_stats"]
+        prev_stats = stats["precpu_stats"]
         # get the total usage
-        delta_t = float(cpu_stats["cpu_usage"]["total_usage"]) - float(previous_stats["cpu_usage"]["total_usage"])
-        sys_delta_t = float(cpu_stats["system_cpu_usage"]) - float(previous_stats["system_cpu_usage"])
+        delta = float(curr_stats["cpu_usage"]["total_usage"]) - float(prev_stats["cpu_usage"]["total_usage"])
+        sys_delta = float(curr_stats["system_cpu_usage"]) - float(prev_stats["system_cpu_usage"])
+        # account for the number of CPUS when computing the percentage
+        num_cpus = len(curr_stats["cpu_usage"]["percpu_usage"])
+        percentage = (delta / sys_delta) * num_cpus * 100
         # add all cpu usage of all containers
-        cpu_usage += delta_t / sys_delta_t * 100.0
+        cpu_usage += percentage
     # get average cpu usage of the pod
     cpu_usage /= max(1, total)
-    return cpu_usage
+    # round the answer so it's prettier
+    return round(cpu_usage, 2)
 
 
 ### helpers ##########################################################################################################
