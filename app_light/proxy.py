@@ -126,7 +126,7 @@ def scale(lower_threshold, upper_threshold):
             if avg_cpu_usage > max_cpu:
                 # 3a. trigger the addition actions
                 # we want  ( average * curr / new ) <= upper   implies   ( average * curr / upper ) <= new
-                online_after_scaling = min(math.ceil(avg_cpu_usage * currently_online / max_cpu), MAX_NODES)
+                online_after_scaling = min(math.ceil(avg_cpu_usage * currently_online / max_cpu), max_nodes)
                 num_of_nodes_to_add = online_after_scaling - currently_online
                 # assign jobs to the all the nodes to add
                 for i in range(num_of_nodes_to_add):
