@@ -595,6 +595,7 @@ def cloud_pod_ls():
             pod["elasticity_range"] = f'{int(min_nodes)} - {int(max_nodes)}'
             pod["elasticity_enabled"] = elasticity
             pod["cpu_range"] = f'{min_cpu} - {max_cpu}'
+            pod["memory"] = get_avg_memory()
             result = pod
         print(result)
         return jsonify(pod=pod)
