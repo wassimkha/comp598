@@ -68,7 +68,8 @@ def monitor():
             return jsonify({'cpu_usage': None, 'mem_percent': None})
         # otherwise get the average and return it
         cpu_usage = get_avg_cpu()
-        return jsonify({'cpu_usage': cpu_usage, 'mem_percent': 0.0, "min_nodes": min_nodes, "max_nodes": max_nodes})
+        memory_usage = get_avg_memory()
+        return jsonify({'cpu_usage': cpu_usage, 'mem_percent': memory_usage, "min_nodes": min_nodes, "max_nodes": max_nodes})
 
 
 # pod's elasticity enabled, update the pod's lower and upper size
@@ -181,7 +182,7 @@ def get_avg_cpu():
         # get the total usage
         delta = float(curr_stats["cpu_usage"]["total_usage"]) - float(prev_stats["cpu_usage"]["total_usage"])
         sys_delta = float(curr_stats["system_cpu_usage"]) - float(prev_stats["system_cpu_usage"])
-        # account for the number of CPUS when computing the percentage
+        # compute the percentage
         percentage = (delta / sys_delta) * 100
         # add all cpu usage of all containers
         cpu_usage += percentage
@@ -191,8 +192,31 @@ def get_avg_cpu():
     return round(cpu_usage, 2)
 
 
-### helpers ##########################################################################################################
+# get the average memory utilization
+def get_avg_memory():
+    # for each container
+    memory_usage = 0.0
+    currently_online = [node for node in pod['nodes'] if node['status'] == 'ONLINE']
+    total = len(currently_online)
+    for node in currently_online:
+        container = client.containers.get(node["id"])
+        # get memory usage statistics from the current read
+        stats = container.stats(stream=False)
+        memory_stats = stats["memory_stats"]
+        # get the total usage
+        usage = memory_stats["usage"]
+        limit = memory_stats["limit"]
+        # compute the percentage
+        percentage = (usage / limit) * 100
+        # add all memory usage of all containers
+        memory_usage += percentage
+    # get average memory usage of the pod
+    memory_usage /= max(1, total)
+    # round the answer so it's prettier
+    return round(memory_usage, 2)
 
+
+### helpers ##########################################################################################################
 
 def node_init(node_name, port, cpus=CPUS, memory=MEMORY):
     """ Creates a new node
