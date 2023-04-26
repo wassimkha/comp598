@@ -62,9 +62,9 @@ elastic_mode = False
 upper_threshold = 0 
 lower_threshold = 0
 
-port_numbers_light = {key: False for key in range(15000, 15009)}  # 10
+port_numbers_heavy = {key: False for key in range(15000, 15009)}  # 10
 port_numbers_medium = {key: False for key in range(15000, 15014)}  # 15
-port_numbers_heavy = {key: False for key in range(15000, 15019)}  # 20
+port_numbers_light = {key: False for key in range(15000, 15019)}  # 20
 
 # Helper function to get URL based on specified pod
 def get_serverPrams(pod_id):
