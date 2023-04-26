@@ -204,8 +204,7 @@ def get_avg_memory():
         stats = container.stats(stream=False)
         memory_stats = stats["memory_stats"]
         # get the total usage
-        usage = float(memory_stats["usage"]) - float(memory_stats["stats"]["cache"]) \
-                + float(memory_stats["stats"]["active_file"])
+        usage = float(memory_stats["usage"]) 
         limit = float(memory_stats["limit"])
         # compute the percentage
         percentage = (usage / limit) * 100
