@@ -206,7 +206,7 @@ def node_init(node_name, port, cpus=CPUS, memory=MEMORY):
 
     # linux Alpine image is running the containers, each has a specific CPU, memory, and storage limit factor
     client.containers.run(image=img, ports={'5000/tcp': port},
-                          command=['python', 'app.py', node_name],
+                          # command=['python', 'app.py', node_name],
                           stop_signal='SIGINT',
                           detach=True, name=node_name, stdin_open=True, tty=True,
                           cap_add='SYS_ADMIN', mem_limit=memory,
@@ -272,26 +272,26 @@ def exec_job(node):
     # node is now ONLINE
     node['status'] = "ONLINE"
 
-    # # once the manager dispatches the job, the ID of the job is printed to stdout
-    # port = node['port']
-    # print(f"Job with is being dispatched on port {port}.")
-    #
-    # # execute the job
-    # container = client.containers.get(node['name'])
-    # exit_code, output = container.exec_run(['python', 'app.py'], stdin=True)
-    #
-    # # if the job was aborted
-    # if exit_code != 0:
-    #     print(f"Job on port {port} was aborted during execution.")
-    #     return
-    #
-    # # save the output to a log file
-    # date_time = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-    # log_file = f'{LOG_DIR}/{JOB_TYPE.lower()}_{port}.log'
-    # output = io.StringIO(output.decode()).getvalue()
-    # container.exec_run(["/bin/sh", "-c", f"echo 'LOG - {JOB_TYPE.lower()} on port {port}' > {log_file}"])
-    # container.exec_run(["/bin/sh", "-c", f"echo '({date_time})' >> {log_file}"])
-    # container.exec_run(["/bin/sh", "-c", f"echo '{output}' >> {log_file}"])
+    # once the manager dispatches the job, the ID of the job is printed to stdout
+    port = node['port']
+    print(f"Job with is being dispatched on port {port}.")
+
+    # execute the job
+    container = client.containers.get(node['name'])
+    exit_code, output = container.exec_run(['python', 'app.py'], stdin=True)
+
+    # if the job was aborted
+    if exit_code != 0:
+        print(f"Job on port {port} was aborted during execution.")
+        return
+
+    # save the output to a log file
+    date_time = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+    log_file = f'{LOG_DIR}/{JOB_TYPE.lower()}_{port}.log'
+    output = io.StringIO(output.decode()).getvalue()
+    container.exec_run(["/bin/sh", "-c", f"echo 'LOG - {JOB_TYPE.lower()} on port {port}' > {log_file}"])
+    container.exec_run(["/bin/sh", "-c", f"echo '({date_time})' >> {log_file}"])
+    container.exec_run(["/bin/sh", "-c", f"echo '{output}' >> {log_file}"])
 
 
 def abort_job(node):
