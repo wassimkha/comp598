@@ -1,8 +1,6 @@
 # Overview 
  In this project's third milestone, the resource manager is made elastic, meaning it can automatically adjust resource allocation based on user demand. The user specifies the limits of elastic scaling and the resource manager adjusts resource allocation within those limits.
 
-In this assignment, the cloud system is required to support three pods, each with its own Resource Proxy. The pods are designed to run in different virtual machines and have a limit on the number of nodes that can be added to them. The heavy pod can have up to 10 nodes, the medium pod can have up to 15 nodes, and the light pod can have up to 20 nodes. The nodes in the different pods will have different sizes with varying CPU and memory limits, and the resource proxies will be used to manage the resources allocated to each pod. The resource proxies will be responsible for assigning nodes to pods and ensuring that the nodes are not overloaded with more resources than they can handle.
-
 ## Class Structure Overview 
 
 ### Elastic Manager
